@@ -7,11 +7,16 @@ services:
     ports:
       - "5000:5000"
     volumes:
-      # 1. Datenbank persistieren (damit User/Matches nicht gelöscht werden)
+      # --- HIER IST DER WICHTIGE TEIL ---
+      # Links: Dein PC | Rechts: Der Container
+      
+      # 1. Die Datenbank-Datei sichern:
       - ./tournament.db:/app/tournament.db
       
-      # 2. Bilder persistieren (damit Uploads erhalten bleiben)
+      # 2. Die Map-Bilder sichern:
       - ./static/map_images:/app/static/map_images
+      # ----------------------------------
     restart: unless-stopped
     environment:
+      - FLASK_APP=app.py
       - FLASK_ENV=production
