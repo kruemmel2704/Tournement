@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  tournament-app:
+    build: .
+    container_name: tournament_manager
+    ports:
+      - "5000:5000"
+    volumes:
+      # 1. Datenbank persistieren (damit User/Matches nicht gelöscht werden)
+      - ./tournament.db:/app/tournament.db
+      
+      # 2. Bilder persistieren (damit Uploads erhalten bleiben)
+      - ./static/map_images:/app/static/map_images
+    restart: unless-stopped
+    environment:
+      - FLASK_ENV=production

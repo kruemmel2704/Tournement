@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    .manage-grid { display: grid; gap: 30px; }
+    .section-card { background: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+    .clan-card { background: #222; border-left: 4px solid #e91e63; border-radius: 4px; margin-bottom: 15px; overflow: hidden; }
+    .clan-header { padding: 10px 15px; background: #2a2a2a; display: flex; justify-content: space-between; align-items: center; font-weight: bold; }
+    .team-item { padding: 8px 15px; border-top: 1px solid #333; display: flex; justify-content: space-between; font-size: 0.9rem; }
+    .team-item:hover { background: #252525; }
+    .input-group { display: flex; gap: 10px; margin-bottom: 15px; }
+    .input-std { flex: 1; padding: 10px; background: #333; border: 1px solid #555; color: white; border-radius: 4px; }
+    .btn-action { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; color: white; font-weight: bold; }
+    
+    /* Style für Passwort-Reset innerhalb der Clan-Karte */
+    .pw-reset-box {
+        background: #151515; padding: 10px; border-top: 1px dashed #444; 
+        display: flex; gap: 10px; align-items: center;
+    }
+</style>
+
+<div class="container" style="max-width: 900px;">
+    
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2>🛡️ Clan & Team Manager</h2>
+        <a href="{{ url_for('dashboard') }}" class="btn" style="background: #555;">&larr; Dashboard</a>
+    </div>
+
+    <div class="section-card" style="border-top: 4px solid #ff9800;">
+        <h3 style="margin-top: 0; color: #ff9800;">🔑 Mein Admin-Passwort ändern</h3>
+        <form action="{{ url_for('admin_change_password') }}" method="POST" class="input-group">
+            <input type="password" name="new_password" placeholder="Neues Passwort" required class="input-std">
+            <input type="password" name="confirm_password" placeholder="Bestätigen" required class="input-std">
+            <button type="submit" class="btn-action" style="background: #ff9800; color: #000;">Ändern</button>
+        </form>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+        <div class="section-card" style="border-top: 4px solid #e91e63; margin-bottom: 0;">
+            <h3 style="margin-top: 0; color: #e91e63;">Neuen Clan anlegen</h3>
+            <form action="{{ url_for('create_clan') }}" method="POST" style="display: flex; flex-direction: column; gap: 10px;">
+                <input type="text" name="clan_name" placeholder="Clan Name" required class="input-std">
+                <button type="submit" class="btn-action" style="background: #e91e63; width: 100%;">Clan erstellen</button>
+            </form>
+        </div>
+
+        <div class="section-card" style="border-top: 4px solid #2196f3; margin-bottom: 0;">
+            <h3 style="margin-top: 0; color: #2196f3;">Neues Team registrieren</h3>
+            <form action="{{ url_for('create_user') }}" method="POST" style="display: flex; flex-direction: column; gap: 10px;">
+                <input type="text" name="username" placeholder="Team Name" required class="input-std">
+                <select name="clan_id" class="input-std">
+                    <option value="">-- Kein Clan (Freier Agent) --</option>
+                    {% for clan in clans %}
+                    <option value="{{ clan.id }}">{{ clan.name }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="btn-action" style="background: #2196f3; width: 100%;">Team hinzufügen</button>
+            </form>
+        </div>
+    </div>
+
+    <h3 style="border-bottom: 1px solid #444; padding-bottom: 10px; margin-top: 30px;">Aktuelle Struktur</h3>
+    
+    {% for clan in clans %}
+    <div class="clan-card">
+        <div class="clan-header">
+            <span>🛡️ {{ clan.name }}</span>
+            <div style="display: flex; gap: 10px;">
+                <button onclick="document.getElementById('pw-reset-{{ clan.id }}').style.display = document.getElementById('pw-reset-{{ clan.id }}').style.display === 'none' ? 'flex' : 'none'" 
+                        style="background: #444; border: none; color: white; cursor: pointer; padding: 5px 10px; border-radius: 4px; font-size: 0.8rem;">
+                    🔑 PW Reset
+                </button>
+
+                <form action="{{ url_for('delete_clan', clan_id=clan.id) }}" method="POST" onsubmit="return confirm('Clan {{ clan.name }} wirklich löschen?');">
+                    <button type="submit" style="background:none; border:none; color:#ff5252; cursor:pointer; font-weight:bold;">Löschen</button>
+                </form>
+            </div>
+        </div>
+
+        <div id="pw-reset-{{ clan.id }}" class="pw-reset-box" style="display: none;">
+            <span style="color: #aaa; font-size: 0.9rem;">Neues PW für {{ clan.name }}:</span>
+            <form action="{{ url_for('admin_reset_clan_password', clan_id=clan.id) }}" method="POST" style="display: flex; gap: 5px; flex: 1;">
+                <input type="text" name="new_password" placeholder="Neues Passwort" required style="padding: 5px; background: #222; border: 1px solid #555; color: white; border-radius: 3px; flex: 1;">
+                <button type="submit" style="background: #ff9800; border: none; color: black; cursor: pointer; padding: 5px 10px; border-radius: 3px; font-weight: bold;">Speichern</button>
+            </form>
+        </div>
+
+        <div>
+            {% for team in clan.members %}
+            <div class="team-item">
+                <span style="display:flex; align-items:center; gap:8px;">
+                    👤 {{ team.username }}
+                </span>
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <code style="color:#666; background:#111; padding:2px 5px; border-radius:3px; font-family:monospace;">{{ team.token }}</code>
+                    <form action="{{ url_for('delete_user', user_id=team.id) }}" method="POST">
+                        <button type="submit" style="color:#ff5252; background:none; border:none; cursor:pointer;">✕</button>
+                    </form>
+                </div>
+            </div>
+            {% else %}
+            <div class="team-item" style="color:#666; font-style:italic; padding: 15px;">Keine Teams in diesem Clan.</div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+
+    {% if users_no_clan %}
+    <div class="clan-card" style="border-left-color: #777;">
+        <div class="clan-header" style="background: #222; color: #aaa;">
+            <span>⚠️ Freie Teams (Ohne Clan)</span>
+        </div>
+        {% for team in users_no_clan %}
+        <div class="team-item">
+            <span>👤 {{ team.username }}</span>
+            <div style="display:flex; gap:10px; align-items:center;">
+                <code style="color:#666; background:#111; padding:2px 5px; border-radius:3px;">{{ team.token }}</code>
+                <form action="{{ url_for('delete_user', user_id=team.id) }}" method="POST">
+                    <button type="submit" style="color:#ff5252; background:none; border:none; cursor:pointer;">✕</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

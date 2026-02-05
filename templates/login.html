@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container" style="max-width: 400px; margin-top: 50px;">
+    <div class="card" style="text-align: center;">
+        <h2 style="margin-bottom: 20px;">🔒 Login</h2>
+        
+        <form method="POST">
+            <input type="text" name="username" placeholder="Username ODER Clan-Name" required 
+                   style="width: 100%; padding: 10px; margin-bottom: 10px; background: #222; border: 1px solid #444; color: white; border-radius: 4px;">
+            
+            <input type="password" name="password" placeholder="Passwort (Clan/Admin) oder Token" required 
+                   style="width: 100%; padding: 10px; margin-bottom: 20px; background: #222; border: 1px solid #444; color: white; border-radius: 4px;">
+            
+            <button type="submit" class="btn" style="width: 100%;">Einloggen</button>
+        </form>
+        
+        <div style="margin-top: 25px; padding-top: 20px; border-top: 1px solid #333;">
+            <p style="color: #aaa; margin-bottom: 10px;">Noch keinen Clan-Account?</p>
+            <a href="{{ url_for('register_clan') }}" class="btn" style="background: #222; border: 1px solid #444; width: 100%; display: block; text-decoration: none; padding: 10px;">
+                📝 Clan Registrieren
+            </a>
+        </div>
+
+        <p style="margin-top: 20px; color: #666; font-size: 0.8em;">
+            Teams nutzen bitte ihren Token.
+        </p>
+    </div>
+</div>
+{% endblock %}

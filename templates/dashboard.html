@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    /* --- ADMIN BUTTON GRID --- */
+    .admin-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+        margin-bottom: 40px;
+    }
+    .admin-action-card {
+        background: #222;
+        border: 1px solid #444;
+        border-radius: 8px;
+        padding: 20px;
+        text-align: center;
+        text-decoration: none;
+        color: white;
+        transition: transform 0.2s, background 0.2s;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+    .admin-action-card:hover {
+        transform: translateY(-3px);
+        background: #2a2a2a;
+        border-color: #666;
+    }
+    .admin-icon { font-size: 2rem; margin-bottom: 10px; }
+
+    /* --- BRACKET STYLING --- */
+    .bracket-container {
+        display: flex;
+        flex-direction: row;
+        overflow-x: auto;
+        padding: 20px 0;
+        gap: 40px;
+    }
+    .bracket-round {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-around;
+        min-width: 240px;
+    }
+    .round-title {
+        text-align: center; color: #888; margin-bottom: 15px; 
+        text-transform: uppercase; font-size: 0.8rem; letter-spacing: 1px;
+    }
+    .match-card {
+        background: #1e1e1e; border: 1px solid #333; border-radius: 6px; padding: 12px;
+        margin-bottom: 20px; text-decoration: none; display: block;
+        transition: transform 0.2s, border-color 0.2s;
+        position: relative;
+    }
+    .match-card:hover { transform: translateY(-2px); border-color: #555; }
+    
+    .team-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 0.95rem; }
+    .team-name { font-weight: 500; color: #eee; }
+    .team-name.tbd { color: #555; font-style: italic; }
+    .team-name.winner { color: #4caf50; font-weight: bold; }
+    .team-name.loser { color: #ff5252; opacity: 0.6; }
+    .score { background: #111; padding: 0 6px; border-radius: 3px; color: #aaa; font-family: monospace; }
+    
+    /* Clan Tag Style */
+    .clan-tag { font-size: 0.75em; color: #e91e63; font-weight: normal; margin-left: 4px; }
+
+    .match-status { 
+        font-size: 0.7rem; text-align: center; margin-top: 8px; 
+        color: #666; border-top: 1px solid #2a2a2a; padding-top: 5px; 
+    }
+
+    /* Admin Controls Icons */
+    .admin-controls { display: flex; gap: 8px; margin-left: auto; }
+    .btn-icon {
+        background: none; border: none; cursor: pointer; font-size: 1.1rem;
+        padding: 5px; border-radius: 4px; transition: background 0.2s; color: #aaa;
+    }
+    .btn-icon:hover { background: rgba(255,255,255,0.1); color: white; }
+</style>
+
+<div class="container">
+
+    {% if current_user.is_admin %}
+    <h2 style="margin-bottom: 20px;">⚡ Admin Zentrale</h2>
+    
+    <div class="admin-grid">
+        <a href="{{ url_for('create_tournament') }}" class="admin-action-card" style="border-top: 4px solid #ff9800;">
+            <div class="admin-icon">🏆</div>
+            <strong>Neues Turnier</strong>
+            <span style="font-size: 0.8rem; color: #aaa; margin-top: 5px;">Baum erstellen & starten</span>
+        </a>
+        
+        <a href="{{ url_for('users_manager') }}" class="admin-action-card" style="border-top: 4px solid #2196f3;">
+            <div class="admin-icon">👥</div>
+            <strong>User Verwaltung</strong>
+            <span style="font-size: 0.8rem; color: #aaa; margin-top: 5px;">Teams & Tokens managen</span>
+        </a>
+        
+        <a href="{{ url_for('maps_manager') }}" class="admin-action-card" style="border-top: 4px solid #4caf50;">
+            <div class="admin-icon">🗺️</div>
+            <strong>Karten Pool</strong>
+            <span style="font-size: 0.8rem; color: #aaa; margin-top: 5px;">Upload & Archivierung</span>
+        </a>
+    </div>
+
+    <div class="card" style="border-left: 5px solid #9c27b0; margin-bottom: 40px;">
+        <h3>🏰 Clans Verwalten</h3>
+        <div style="display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap;">
+            
+            <form action="{{ url_for('create_clan') }}" method="POST" style="flex: 1; min-width: 300px; display: flex; gap: 10px;">
+                <input type="text" name="clan_name" placeholder="Clan Name" required style="padding: 10px; flex: 1; background: #1a1a1a; border: 1px solid #444; color: white;">
+                <button type="submit" class="btn" style="background: #9c27b0;">Erstellen</button>
+            </form>
+
+            <div style="flex: 1; display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+                <span style="color: #aaa;">Existierende Clans:</span>
+                {% for clan in clans %}
+                    <span style="background: #333; padding: 5px 10px; border-radius: 4px; border: 1px solid #555; font-size: 0.9rem;">
+                        {{ clan.name }} <span style="color: #9c27b0;">({{ clan.members|length }})</span>
+                    </span>
+                {% else %}
+                    <span style="color: #555; font-style: italic;">Keine Clans gefunden.</span>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+
+    <h2 style="border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px;">🔥 Laufende Turniere</h2>
+
+    {% for tournament in active_tournaments %}
+    <div class="card" style="margin-bottom: 30px; border-top: 4px solid #ff5722; background: #161616;">
+        
+        <div style="display: flex; align-items: center; border-bottom: 1px solid #2a2a2a; padding-bottom: 15px; margin-bottom: 10px;">
+            <h3 style="margin: 0;">{{ tournament.name }}</h3>
+            
+            {% if current_user.is_admin %}
+            <div class="admin-controls">
+                <form action="{{ url_for('archive_tournament', t_id=tournament.id) }}" method="POST" title="Ins Archiv verschieben">
+                    <button type="submit" class="btn-icon">📁</button>
+                </form>
+                <form action="{{ url_for('delete_tournament', t_id=tournament.id) }}" method="POST" onsubmit="return confirm('Wirklich löschen?');" title="Endgültig löschen">
+                    <button type="submit" class="btn-icon" style="color: #d32f2f;">🗑️</button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="bracket-container">
+            {% set rounds = tournament.matches|groupby('round_number') %}
+            
+            {% for round_num, matches in rounds %}
+            <div class="bracket-round">
+                <div class="round-title">
+                    {% if loop.last %} 🏆 FINALE
+                    {% elif loop.first %} Runde 1
+                    {% else %} Runde {{ round_num }}
+                    {% endif %}
+                </div>
+
+                {% for match in matches|sort(attribute='match_index') %}
+                <a href="{{ url_for('match_view', match_id=match.id) }}" class="match-card" 
+                   style="border-left: 3px solid {% if match.state == 'finished' %}#4caf50{% elif match.state == 'waiting' %}#444{% else %}#2196f3{% endif %};">
+                    
+                    <div class="team-row">
+                        <span class="team-name {% if match.team_a == 'TBD' %}tbd{% endif %} {% if match.state == 'finished' and match.total_score_a > match.total_score_b %}winner{% elif match.state == 'finished' and match.total_score_a < match.total_score_b %}loser{% endif %}">
+                            {{ match.team_a }}
+                            {% if clan_map.get(match.team_a) %}
+                                <span class="clan-tag">({{ clan_map[match.team_a] }})</span>
+                            {% endif %}
+                        </span>
+                        <span class="score">{{ match.total_score_a }}</span>
+                    </div>
+
+                    <div class="team-row">
+                        <span class="team-name {% if match.team_b == 'TBD' %}tbd{% endif %} {% if match.state == 'finished' and match.total_score_b > match.total_score_a %}winner{% elif match.state == 'finished' and match.total_score_b < match.total_score_a %}loser{% endif %}">
+                            {{ match.team_b }}
+                            {% if clan_map.get(match.team_b) %}
+                                <span class="clan-tag">({{ clan_map[match.team_b] }})</span>
+                            {% endif %}
+                        </span>
+                        <span class="score">{{ match.total_score_b }}</span>
+                    </div>
+
+                    <div class="match-status">
+                        {% if match.team_a == 'TBD' or match.team_b == 'TBD' %}
+                            Warte auf Gegner...
+                        {% else %}
+                            {{ match.state|replace('_', ' ')|upper }}
+                        {% endif %}
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+            {% endfor %}
+        </div>
+
+    </div>
+    {% else %}
+    <div style="text-align: center; padding: 40px; color: #666; border: 2px dashed #333; border-radius: 8px;">
+        Momentan keine aktiven Turniere.
+    </div>
+    {% endfor %}
+
+
+    {% if archived_tournaments %}
+    <div style="margin-top: 60px;">
+        <details>
+            <summary style="cursor: pointer; color: #888; font-size: 1.1rem; user-select: none;">
+                📂 Archivierte Turniere anzeigen ({{ archived_tournaments|length }})
+            </summary>
+            
+            {% for tournament in archived_tournaments %}
+            <div class="card" style="margin-top: 20px; border-left: 5px solid #666; background: #111; opacity: 0.8;">
+                <div style="display: flex; align-items: center; border-bottom: 1px solid #333; padding-bottom: 10px;">
+                    <h3 style="margin: 0; color: #aaa;">{{ tournament.name }} (Archiviert)</h3>
+                    
+                    {% if current_user.is_admin %}
+                    <div class="admin-controls">
+                        <form action="{{ url_for('archive_tournament', t_id=tournament.id) }}" method="POST" title="Wiederherstellen">
+                            <button type="submit" class="btn-icon">🔄</button>
+                        </form>
+                        <form action="{{ url_for('delete_tournament', t_id=tournament.id) }}" method="POST" onsubmit="return confirm('Wirklich löschen?');">
+                            <button type="submit" class="btn-icon" style="color: #d32f2f;">🗑️</button>
+                        </form>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <div class="bracket-container" style="padding: 10px 0;">
+                    {% set rounds = tournament.matches|groupby('round_number') %}
+                    {% for round_num, matches in rounds %}
+                    <div class="bracket-round" style="min-width: 180px;">
+                        <div class="round-title">Runde {{ round_num }}</div>
+                        {% for match in matches|sort(attribute='match_index') %}
+                        <div class="match-card" style="pointer-events: none; border-color: #333; padding: 8px;">
+                            <div class="team-row">
+                                <span class="team-name">
+                                    {{ match.team_a }}
+                                    {% if clan_map.get(match.team_a) %}<span class="clan-tag">({{ clan_map[match.team_a] }})</span>{% endif %}
+                                </span>
+                                <span class="score">{{ match.total_score_a }}</span>
+                            </div>
+                            <div class="team-row">
+                                <span class="team-name">
+                                    {{ match.team_b }}
+                                    {% if clan_map.get(match.team_b) %}<span class="clan-tag">({{ clan_map[match.team_b] }})</span>{% endif %}
+                                </span>
+                                <span class="score">{{ match.total_score_b }}</span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </details>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

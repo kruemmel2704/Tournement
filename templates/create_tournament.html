@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    .selection-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); /* Etwas breiter für Clan Namen */
+        gap: 15px;
+        margin-top: 20px;
+    }
+
+    .user-select-card {
+        background: #222;
+        border: 2px solid #444;
+        border-radius: 8px;
+        padding: 15px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.2s;
+        position: relative;
+        user-select: none;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 120px;
+    }
+
+    .user-select-card:hover {
+        transform: translateY(-3px);
+        border-color: #888;
+    }
+
+    /* Verstecke Checkbox */
+    .user-select-card input[type="checkbox"] {
+        position: absolute; opacity: 0; cursor: pointer; height: 0; width: 0;
+    }
+
+    /* Selected State */
+    .user-select-card.selected {
+        background: #1b5e20; border-color: #4caf50;
+        box-shadow: 0 0 15px rgba(76, 175, 80, 0.4);
+    }
+    .user-select-card.selected::after {
+        content: "✔"; position: absolute; top: 5px; right: 10px; color: #4caf50; font-weight: bold;
+    }
+    .user-select-card.selected .team-name { color: white; }
+    .user-select-card.selected .clan-tag { color: #81c784; } /* Hellgrün wenn ausgewählt */
+
+    .icon-avatar { font-size: 2.5rem; margin-bottom: 10px; display: block; color: #aaa; }
+    .user-select-card.selected .icon-avatar { color: white; }
+
+    .team-name { font-weight: bold; font-size: 1.1rem; margin-bottom: 2px; }
+    .clan-tag { font-size: 0.85rem; color: #e91e63; font-weight: normal; } /* Clan Farbe */
+
+    .counter-box {
+        background: #333; padding: 10px; border-radius: 5px; margin-bottom: 20px;
+        text-align: center; font-weight: bold;
+    }
+</style>
+
+<div class="container" style="max-width: 900px;">
+    
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2>🏆 Neues Turnier erstellen</h2>
+        <a href="{{ url_for('dashboard') }}" class="btn" style="background: #555;">Zurück zum Dashboard</a>
+    </div>
+
+    <div class="card">
+        <form action="{{ url_for('create_tournament') }}" method="POST" id="createForm">
+            
+            <label style="color: #aaa; text-transform: uppercase; font-size: 0.8rem;">Turnier Name</label>
+            <input type="text" name="tournament_name" placeholder="z.B. Winter Championship 2025" required 
+                   style="width: 100%; padding: 15px; font-size: 1.2rem; margin-top: 5px; background: #1a1a1a; border: 1px solid #444; color: white; border-radius: 5px;">
+
+            <div style="margin-top: 30px;">
+                <label style="color: #aaa; text-transform: uppercase; font-size: 0.8rem;">Teilnehmer wählen</label>
+                
+                <div class="counter-box">
+                    <span id="countDisplay">0</span> Teams ausgewählt 
+                    <span id="warningMsg" style="color: #ff5252; margin-left: 10px; font-weight: normal; font-size: 0.9em;">(Gerade Anzahl benötigt!)</span>
+                </div>
+
+                <div class="selection-grid">
+                    {% for user in users %}
+                    <label class="user-select-card">
+                        <input type="checkbox" name="selected_users" value="{{ user.username }}" onchange="handleSelection(this)">
+                        
+                        <span class="icon-avatar">👤</span>
+                        
+                        <div class="team-name">{{ user.username }}</div>
+                        
+                        {% if user.clan %}
+                            <div class="clan-tag">({{ user.clan.name }})</div>
+                        {% else %}
+                            <div style="font-size: 0.8rem; color: #555;">Free Agent</div>
+                        {% endif %}
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <button type="submit" class="btn" style="width: 100%; margin-top: 30px; padding: 15px; font-size: 1.2rem; opacity: 0.5; cursor: not-allowed;" disabled>
+                Turnier Starten 🚀
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+    function handleSelection(checkbox) {
+        const card = checkbox.closest('.user-select-card');
+        if (checkbox.checked) {
+            card.classList.add('selected');
+        } else {
+            card.classList.remove('selected');
+        }
+        updateCount();
+    }
+
+    function updateCount() {
+        const checkboxes = document.querySelectorAll('input[name="selected_users"]:checked');
+        const count = checkboxes.length;
+        const display = document.getElementById('countDisplay');
+        const warning = document.getElementById('warningMsg');
+        const submitBtn = document.querySelector('button[type="submit"]');
+        
+        display.innerText = count;
+
+        if (count > 0 && count % 2 === 0) {
+            display.style.color = "#4caf50";
+            warning.style.display = "none";
+            submitBtn.disabled = false;
+            submitBtn.style.opacity = "1";
+            submitBtn.style.cursor = "pointer";
+        } else {
+            display.style.color = "#ff5252";
+            warning.style.display = "inline";
+            warning.innerText = count < 2 ? "(Min. 2 Teams!)" : "(Ungerade Anzahl!)";
+            submitBtn.disabled = true;
+            submitBtn.style.opacity = "0.5";
+            submitBtn.style.cursor = "not-allowed";
+        }
+    }
+    
+    document.addEventListener("DOMContentLoaded", updateCount);
+</script>
+
+{% endblock %}

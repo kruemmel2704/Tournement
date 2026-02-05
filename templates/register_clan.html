@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container" style="max-width: 450px; margin-top: 50px;">
+    <div class="card" style="text-align: center; border-top: 5px solid #2196f3;">
+        <h2 style="margin-bottom: 20px;">📝 Clan Registrierung</h2>
+        
+        <form method="POST">
+            <div style="text-align: left; margin-bottom: 15px;">
+                <label style="color: #aaa; font-size: 0.9em;">Clan Name</label>
+                <input type="text" name="clan_name" placeholder="Wähle einen Namen" required 
+                       style="width: 100%; padding: 10px; margin-top: 5px; background: #222; border: 1px solid #444; color: white; border-radius: 4px;">
+            </div>
+            
+            <div style="text-align: left; margin-bottom: 15px;">
+                <label style="color: #aaa; font-size: 0.9em;">Passwort</label>
+                <input type="password" name="password" placeholder="Sicheres Passwort wählen" required 
+                       style="width: 100%; padding: 10px; margin-top: 5px; background: #222; border: 1px solid #444; color: white; border-radius: 4px;">
+            </div>
+
+            <div style="text-align: left; margin-bottom: 25px;">
+                <label style="color: #aaa; font-size: 0.9em;">Passwort wiederholen</label>
+                <input type="password" name="confirm_password" placeholder="Passwort bestätigen" required 
+                       style="width: 100%; padding: 10px; margin-top: 5px; background: #222; border: 1px solid #444; color: white; border-radius: 4px;">
+            </div>
+            
+            <button type="submit" class="btn" style="width: 100%; background: #2196f3;">Registrieren</button>
+        </form>
+        
+        <hr style="border-color: #333; margin: 20px 0;">
+        
+        <p style="color: #888; font-size: 0.9em;">
+            Bereits registriert? <a href="{{ url_for('login') }}" style="color: white;">Hier einloggen</a>
+        </p>
+
+        <div style="background: #1a1a1a; padding: 10px; margin-top: 20px; font-size: 0.8em; color: #666; border-radius: 4px;">
+            ℹ️ Hinweis: Passwort-Reset oder Account-Löschung ist nur über den Admin möglich.
+        </div>
+    </div>
+</div>
+{% endblock %}

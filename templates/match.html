@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    /* Styles für Maps und Karten */
+    .map-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 15px; margin-bottom: 30px; }
+    .map-card { background: #2a2a2a; border: 2px solid #444; border-radius: 8px; overflow: hidden; position: relative; cursor: pointer; transition: transform 0.2s; padding: 0; width: 100%; }
+    .map-card:hover:not(:disabled) { transform: scale(1.05); border-color: #fff; }
+    .map-image { width: 100%; height: 100px; object-fit: cover; display: block; }
+    .map-name { padding: 8px; text-align: center; font-weight: bold; color: white; background: rgba(0,0,0,0.8); position: absolute; bottom: 0; width: 100%; }
+    
+    .is-banned { filter: grayscale(100%); border-color: #5a1a1a; cursor: not-allowed; }
+    .banned-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.6); display: flex; justify-content: center; align-items: center; z-index: 10; }
+    .banned-text { color: #ff4444; border: 3px solid #ff4444; padding: 5px 15px; font-weight: 900; transform: rotate(-15deg); font-size: 1.2rem; letter-spacing: 2px; }
+
+    .is-picked { border-color: #2e7d32; box-shadow: 0 0 10px #2e7d32; }
+    .picked-badge { position: absolute; top: 5px; right: 5px; background: #2e7d32; color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 0.8rem; }
+</style>
+
+<div class="container" style="max-width: 1000px; margin: 0 auto;">
+
+    <div class="card" style="margin-bottom: 20px; text-align: center; border-left: 5px solid 
+        {% if match.state == 'conflict' %}#ff4444
+        {% elif 'ban' in match.state %}#d32f2f
+        {% elif 'pick' in match.state %}#1976d2
+        {% else %}#fbc02d{% endif %};">
+        
+        <h2>
+            {% if match.state == 'conflict' %}⚠️ KONFLIKT{% else %}{{ match.state|replace('_', ' ')|upper }}{% endif %}
+        </h2>
+        {% if active_team %}
+            <div style="font-size: 1.2rem;">👉 <strong style="color: #ff9800;">{{ active_team }}</strong> ist dran!</div>
+        {% endif %}
+    </div>
+
+    {% if match.state not in ['scoring_phase', 'conflict', 'waiting_for_confirmation', 'finished'] %}
+        <form method="POST">
+            <h3 style="color:#ccc;">Karten Auswahl</h3>
+            <div class="map-grid">
+                {% for map in all_maps %}
+                    {% set is_banned = map.name in banned %}
+                    {% set is_picked = map.name in picked %}
+                    
+                    <button type="submit" name="selected_map" value="{{ map.name }}" 
+                            class="map-card {% if is_banned %}is-banned{% elif is_picked %}is-picked{% endif %}"
+                            {% if is_banned or is_picked %}disabled{% endif %}>
+                        
+                        <img src="{{ url_for('static', filename='map_images/' + map.image_file) }}" class="map-image">
+                        <div class="map-name">{{ map.name }}</div>
+
+                        {% if is_banned %}<div class="banned-overlay"><div class="banned-text">BANNED</div></div>{% endif %}
+                        {% if is_picked %}<div class="picked-badge">PICKED</div>{% endif %}
+                    </button>
+                {% endfor %}
+            </div>
+        </form>
+    {% endif %}
+
+    {% if match.state in ['scoring_phase', 'conflict', 'waiting_for_confirmation', 'finished'] %}
+        <div class="card">
+            <h3>Ergebnisse</h3>
+            
+            {% if match.state == 'conflict' %}
+                <div style="background: #3e1212; border: 2px solid #ff4444; color: white; padding: 20px; text-align: center; margin-bottom: 20px; border-radius: 8px; animation: pulse-red 2s infinite;">
+                    <h2 style="color: #ff4444; margin-top: 0;">⚠️ MATCH KONFLIKT</h2>
+                    <p style="font-size: 1.1rem;">Ergebnisse stimmen nicht überein!</p>
+                    <p style="color: #aaa;">Bitte Admin kontaktieren zur Korrektur.</p>
+                </div>
+                <style>@keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(255,68,68,0.4); } 70% { box-shadow: 0 0 0 10px rgba(255,68,68,0); } 100% { box-shadow: 0 0 0 0 rgba(255,68,68,0); } }</style>
+            {% endif %}
+
+            <form method="POST">
+                <input type="hidden" name="submit_scores" value="true">
+                <table style="width:100%; border-collapse: collapse; margin-bottom: 20px;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid #555;">
+                            <th style="text-align:left; padding:10px;">Map</th>
+                            <th style="text-align:center;">{{ match.team_a }}</th>
+                            <th style="text-align:center;">{{ match.team_b }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% set saved_a = match.get_scores_a() %}
+                        {% set saved_b = match.get_scores_b() %}
+
+                        {% for i in range(1, 5) %}
+                        <tr style="border-bottom: 1px solid #333;">
+                            <td style="padding:10px;">
+                                <small style="color:#888;">Runde {{ i }}</small><br>
+                                {% if picked and picked|length >= i %}
+                                    <strong style="color:#4caf50;">{{ picked[i-1] }}</strong>
+                                {% else %}
+                                    <span style="font-style:italic; color:#666;">(Keine Map)</span>
+                                {% endif %}
+                            </td>
+                            <td style="text-align:center;">
+                                <input type="number" name="score_a_{{ i }}" min="0" style="width:50px; text-align:center; padding:5px; background: #222; color: white; border: 1px solid #555;"
+                                       value="{% if match.state == 'finished' and saved_a|length >= i %}{{ saved_a[i-1] }}{% else %}0{% endif %}"
+                                       {% if match.state == 'finished' %}disabled{% endif %}>
+                            </td>
+                            <td style="text-align:center;">
+                                <input type="number" name="score_b_{{ i }}" min="0" style="width:50px; text-align:center; padding:5px; background: #222; color: white; border: 1px solid #555;"
+                                       value="{% if match.state == 'finished' and saved_b|length >= i %}{{ saved_b[i-1] }}{% else %}0{% endif %}"
+                                       {% if match.state == 'finished' %}disabled{% endif %}>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+
+                {% if match.state != 'finished' %}
+                <button type="submit" class="btn" style="width:100%; background:#d32f2f; color:white;">
+                    {% if match.state == 'conflict' %}Korrektur Senden (Admin){% else %}Ergebnisse Senden{% endif %}
+                </button>
+                {% endif %}
+            </form>
+        </div>
+    {% endif %}
+</div>
+
+<script>
+    const currentState = "{{ match.state }}";
+    if (currentState.includes('ban') || currentState.includes('pick')) {
+        setTimeout(function() { window.location.reload(); }, 3000); 
+    }
+</script>
+
+{% endblock %}

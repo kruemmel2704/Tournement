@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Infernus eSport</title>
+    
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <meta name="theme-color" content="#9e2a2b">
+
+    <style>
+        /* Nur kleine Ergänzungen für die Navigation, die nicht in style.css sind */
+        .nav-link { 
+            color: var(--text-main); 
+            text-decoration: none; 
+            margin-left: 20px; 
+            font-weight: 500; 
+            transition: color 0.2s; 
+        }
+        .nav-link:hover { color: var(--highlight); }
+        
+        /* Flexbox Helper für Header (falls nicht in style.css header abgedeckt) */
+        .nav-container { display: flex; align-items: center; }
+    </style>
+</head>
+<body>
+    
+    <header>
+        <h3 style="margin: 0;">
+            <a href="{{ url_for('dashboard') }}" style="color: var(--highlight); text-decoration: none; display: flex; align-items: center; gap: 10px;">
+                🔥 <span style="font-weight: bold;">Infernus eSport League</span>
+            </a>
+        </h3>
+
+        <nav class="nav-container">
+            {% if current_user.is_authenticated %}
+        
+                <a href="{{ url_for('dashboard') }}" class="nav-link">
+                    Dashboard
+                </a>
+        
+                {% if current_user.is_admin %}
+                    <a href="{{ url_for('users_manager') }}" class="nav-link">
+                        🛡️ Clans
+                    </a>
+            
+                    <a href="{{ url_for('maps_manager') }}" class="nav-link">
+                        🗺️ Maps
+                     </a>
+                {% endif %}
+        
+                <a href="{{ url_for('logout') }}" class="nav-link" style="color: #ff9999;">
+                    Logout
+                </a>
+            {% endif %}
+        </nav>
+    </header>
+    
+    <div class="container">
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="card" style="border-left: 5px solid {% if category == 'error' %}#ff5252{% else %}#4caf50{% endif %}; padding: 15px;">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        {% block content %}{% endblock %}
+    </div>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register("{{ url_for('static', filename='sw.js') }}");
+        }
+    </script>
+</body>
+</html>
