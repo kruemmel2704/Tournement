@@ -7,16 +7,16 @@ services:
     ports:
       - "5000:5000"
     volumes:
-      # --- HIER IST DER WICHTIGE TEIL ---
-      # Links: Dein PC | Rechts: Der Container
+      # 1. Den GANZEN Code live in den Container spiegeln (WICHTIG!)
+      - .:/app
       
-      # 1. Die Datenbank-Datei sichern:
+      # 2. Die Datenbank-Datei sichern (überschreibt die Version im Image)
       - ./tournament.db:/app/tournament.db
       
-      # 2. Die Map-Bilder sichern:
+      # 3. Die Map-Bilder sichern
       - ./static/map_images:/app/static/map_images
-      # ----------------------------------
     restart: unless-stopped
     environment:
       - FLASK_APP=app.py
-      - FLASK_ENV=production
+      - FLASK_ENV=development  # Zeigt Fehler direkt im Browser an
+      - FLASK_DEBUG=1
