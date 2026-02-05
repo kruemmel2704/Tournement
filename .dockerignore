@@ -1,8 +1,0 @@
-__pycache__
-*.pyc
-.git
-.env
-venv
-.venv
-static/map_images/*
-!static/map_images/.gitkeep
