@@ -4,6 +4,5 @@ __pycache__
 .env
 venv
 .venv
-tournament.db
 static/map_images/*
 !static/map_images/.gitkeep
