@@ -31,7 +31,7 @@
     }
     .admin-icon { font-size: 2rem; margin-bottom: 10px; }
 
-    /* --- CUP / LIGA GRID --- */
+    /* --- ITEM GRIDS (Cups, Ligen) --- */
     .cup-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -40,68 +40,101 @@
     }
     .cup-card {
         background: #1a1a1a;
-        border-left: 5px solid #9c27b0; /* Liga Lila */
         border-radius: 4px;
         padding: 20px;
         text-decoration: none;
         color: white;
         transition: transform 0.2s;
         border: 1px solid #333;
-        border-left-width: 5px;
+        border-left: 5px solid #555;
     }
     .cup-card:hover { transform: translateX(5px); background: #222; }
 
-    /* --- BRACKET STYLES --- */
-    .bracket-container {
-        display: flex;
-        flex-direction: row;
-        overflow-x: auto;
-        padding: 20px 0;
-        gap: 40px;
+    /* --- ROSTER / MEMBER STYLES --- */
+    .roster-card {
+        background: #1a1a1a; border: 1px solid #333; border-radius: 8px; 
+        padding: 20px; margin-bottom: 40px; border-left: 5px solid #00e676;
     }
-    .bracket-round {
-        display: flex;
-        flex-direction: column;
-        justify-content: space-around;
-        min-width: 240px;
+    .member-grid {
+        display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); 
+        gap: 15px; margin-bottom: 20px;
     }
-    .round-title {
-        text-align: center; color: #888; margin-bottom: 15px; 
-        text-transform: uppercase; font-size: 0.8rem; letter-spacing: 1px;
+    .member-item {
+        background: #222; padding: 12px; border-radius: 4px; border: 1px solid #444; position: relative;
     }
-    .match-card {
-        background: #1e1e1e; border: 1px solid #333; border-radius: 6px; padding: 12px;
-        margin-bottom: 20px; text-decoration: none; display: block;
-        transition: transform 0.2s, border-color 0.2s;
-        position: relative;
+    .member-platform {
+        display: inline-block; padding: 2px 6px; border-radius: 3px; 
+        font-size: 0.75rem; font-weight: bold; margin-top: 5px; color: black;
     }
+    .plat-pc { background: #2196f3; }
+    .plat-ps { background: #3f51b5; color: white; }
+    .plat-xbox { background: #4caf50; }
+
+    /* --- BRACKET STYLES (Turniere) --- */
+    .bracket-container { display: flex; flex-direction: row; overflow-x: auto; padding: 20px 0; gap: 40px; }
+    .bracket-round { display: flex; flex-direction: column; justify-content: space-around; min-width: 240px; }
+    .round-title { text-align: center; color: #888; margin-bottom: 15px; text-transform: uppercase; font-size: 0.8rem; letter-spacing: 1px; }
+    .match-card { background: #1e1e1e; border: 1px solid #333; border-radius: 6px; padding: 12px; margin-bottom: 20px; text-decoration: none; display: block; transition: transform 0.2s, border-color 0.2s; position: relative; }
     .match-card:hover { transform: translateY(-2px); border-color: #555; }
-    
     .team-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 0.95rem; }
     .team-name { font-weight: 500; color: #eee; }
-    .team-name.tbd { color: #555; font-style: italic; }
     .team-name.winner { color: #4caf50; font-weight: bold; }
     .team-name.loser { color: #ff5252; opacity: 0.6; }
     .score { background: #111; padding: 0 6px; border-radius: 3px; color: #aaa; font-family: monospace; }
-    
-    /* Clan Tag Style */
+    .match-status { font-size: 0.7rem; text-align: center; margin-top: 8px; color: #666; border-top: 1px solid #2a2a2a; padding-top: 5px; }
     .clan-tag { font-size: 0.75em; color: #e91e63; font-weight: normal; margin-left: 4px; }
-
-    .match-status { 
-        font-size: 0.7rem; text-align: center; margin-top: 8px; 
-        color: #666; border-top: 1px solid #2a2a2a; padding-top: 5px; 
-    }
-
+    
     /* Admin Controls Icons */
     .admin-controls { display: flex; gap: 8px; margin-left: auto; }
-    .btn-icon {
-        background: none; border: none; cursor: pointer; font-size: 1.1rem;
-        padding: 5px; border-radius: 4px; transition: background 0.2s; color: #aaa;
-    }
+    .btn-icon { background: none; border: none; cursor: pointer; font-size: 1.1rem; padding: 5px; border-radius: 4px; transition: background 0.2s; color: #aaa; }
     .btn-icon:hover { background: rgba(255,255,255,0.1); color: white; }
 </style>
 
 <div class="container">
+
+    {% if not current_user.is_admin and not current_user.is_mod %}
+    <div class="roster-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h3 style="color: #00e676; margin: 0;">👥 Mein Roster (Spieler)</h3>
+            <span style="color: #aaa; font-size: 0.9rem;">Verwalte hier deine Line-Up Mitglieder</span>
+        </div>
+        
+        <div class="member-grid">
+            {% for member in current_user.team_members %}
+            <div class="member-item">
+                <div style="font-weight: bold; color: white; font-size: 1.1rem;">{{ member.gamertag }}</div>
+                <div style="font-size: 0.85rem; color: #bbb; margin: 3px 0;">ID: {{ member.activision_id }}</div>
+                
+                <span class="member-platform {% if member.platform == 'PC' %}plat-pc{% elif 'PS' in member.platform %}plat-ps{% else %}plat-xbox{% endif %}">
+                    {{ member.platform }}
+                </span>
+
+                <form action="{{ url_for('delete_member', member_id=member.id) }}" method="POST" style="position: absolute; top: 10px; right: 10px;">
+                    <button type="submit" style="background: none; border: none; color: #ff5252; cursor: pointer; font-weight: bold;" title="Entfernen">✕</button>
+                </form>
+            </div>
+            {% else %}
+            <div style="grid-column: 1 / -1; text-align: center; color: #555; font-style: italic; padding: 20px; border: 2px dashed #333; border-radius: 6px;">
+                Noch keine Spieler eingetragen. Füge unten welche hinzu.
+            </div>
+            {% endfor %}
+        </div>
+
+        <form action="{{ url_for('add_member') }}" method="POST" style="background: #252525; padding: 15px; border-radius: 4px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+            <strong style="color: #fff; margin-right: 10px;">+ Neu:</strong>
+            <input type="text" name="gamertag" placeholder="Gamertag" required style="flex: 1; min-width: 150px; padding: 8px; background: #111; border: 1px solid #444; color: white; border-radius: 3px;">
+            <input type="text" name="activision_id" placeholder="Activision ID (Name#12345)" required style="flex: 1; min-width: 180px; padding: 8px; background: #111; border: 1px solid #444; color: white; border-radius: 3px;">
+            <select name="platform" style="padding: 8px; background: #111; border: 1px solid #444; color: white; border-radius: 3px;">
+                <option value="PC">PC</option>
+                <option value="PS5">PS5</option>
+                <option value="PS4">PS4</option>
+                <option value="Xbox">Xbox</option>
+            </select>
+            <button type="submit" class="btn" style="background: #00e676; color: black; font-weight: bold; border: none;">Hinzufügen</button>
+        </form>
+    </div>
+    {% endif %}
+
 
     {% if current_user.is_admin %}
     <h2 style="margin-bottom: 20px;">⚡ Admin Zentrale</h2>
@@ -115,8 +148,14 @@
         
         <a href="{{ url_for('create_cup') }}" class="admin-action-card" style="border-top: 4px solid #9c27b0;">
             <div class="admin-icon">⚔️</div>
-            <strong>Neuer Cup / Liga</strong>
-            <span style="font-size: 0.8rem; color: #aaa; margin-top: 5px;">Jeder gegen Jeden</span>
+            <strong>Neuer Cup</strong>
+            <span style="font-size: 0.8rem; color: #aaa; margin-top: 5px;">Round Robin (Einfach)</span>
+        </a>
+
+        <a href="{{ url_for('create_league') }}" class="admin-action-card" style="border-top: 4px solid #ff4081;">
+            <div class="admin-icon">🏅</div>
+            <strong>Neue Liga</strong>
+            <span style="font-size: 0.8rem; color: #aaa; margin-top: 5px;">Round Robin + Ban/Pick</span>
         </a>
 
         <a href="{{ url_for('users_manager') }}" class="admin-action-card" style="border-top: 4px solid #2196f3;">
@@ -135,12 +174,10 @@
     <div class="card" style="border-left: 5px solid #e91e63; margin-bottom: 40px;">
         <h3>🏰 Clans Verwalten (Schnellzugriff)</h3>
         <div style="display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap;">
-            
             <form action="{{ url_for('create_clan') }}" method="POST" style="flex: 1; min-width: 300px; display: flex; gap: 10px;">
                 <input type="text" name="clan_name" placeholder="Neuer Clan Name" required style="padding: 10px; flex: 1; background: #1a1a1a; border: 1px solid #444; color: white;">
                 <button type="submit" class="btn" style="background: #e91e63;">Erstellen</button>
             </form>
-
             <div style="flex: 1; display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
                 <span style="color: #aaa;">Existierende Clans:</span>
                 {% for clan in clans %}
@@ -148,7 +185,7 @@
                         {{ clan.name }} <span style="color: #e91e63;">({{ clan.members|length }})</span>
                     </span>
                 {% else %}
-                    <span style="color: #555; font-style: italic;">Keine Clans gefunden.</span>
+                    <span style="color: #555; font-style: italic;">Keine.</span>
                 {% endfor %}
             </div>
         </div>
@@ -156,11 +193,27 @@
     {% endif %}
 
 
+    {% if active_leagues %}
+    <h2 style="border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px;">🏅 Aktive Ligen (Pick & Ban)</h2>
+    <div class="cup-grid">
+        {% for league in active_leagues %}
+        <a href="{{ url_for('league_details', league_id=league.id) }}" class="cup-card" style="border-left-color: #ff4081;">
+            <h3 style="margin: 0 0 10px 0; color: #ff80ab;">{{ league.name }}</h3>
+            <div style="font-size: 0.9rem; color: #aaa; display: flex; justify-content: space-between; align-items: center;">
+                <span>👥 {{ league.get_participants()|length }} Teams</span>
+                <span style="background: #333; padding: 2px 8px; border-radius: 10px; font-size: 0.8em;">Liga Modus</span>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+
     {% if active_cups %}
-    <h2 style="border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px;">🏆 Aktive Ligen / Cups</h2>
+    <h2 style="border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px;">⚔️ Aktive Cups (Schnellwahl)</h2>
     <div class="cup-grid">
         {% for cup in active_cups %}
-        <a href="{{ url_for('cup_details', cup_id=cup.id) }}" class="cup-card">
+        <a href="{{ url_for('cup_details', cup_id=cup.id) }}" class="cup-card" style="border-left-color: #9c27b0;">
             <h3 style="margin: 0 0 10px 0; color: #d1c4e9;">{{ cup.name }}</h3>
             <div style="font-size: 0.9rem; color: #aaa; display: flex; justify-content: space-between; align-items: center;">
                 <span>👥 {{ cup.get_participants()|length }} Teams</span>
@@ -172,6 +225,7 @@
     {% endif %}
 
 
+    {% if active_tournaments %}
     <h2 style="border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; margin-top: 40px;">🔥 Laufende K.O. Turniere</h2>
 
     {% for tournament in active_tournaments %}
@@ -182,10 +236,10 @@
             
             {% if current_user.is_admin %}
             <div class="admin-controls">
-                <form action="{{ url_for('archive_tournament', t_id=tournament.id) }}" method="POST" title="Ins Archiv verschieben">
+                <form action="{{ url_for('archive_tournament', t_id=tournament.id) }}" method="POST" title="Archivieren">
                     <button type="submit" class="btn-icon">📁</button>
                 </form>
-                <form action="{{ url_for('delete_tournament', t_id=tournament.id) }}" method="POST" onsubmit="return confirm('Wirklich löschen?');" title="Endgültig löschen">
+                <form action="{{ url_for('delete_tournament', t_id=tournament.id) }}" method="POST" onsubmit="return confirm('Wirklich löschen?');" title="Löschen">
                     <button type="submit" class="btn-icon" style="color: #d32f2f;">🗑️</button>
                 </form>
             </div>
@@ -211,9 +265,7 @@
                     <div class="team-row">
                         <span class="team-name {% if match.team_a == 'TBD' %}tbd{% endif %} {% if match.state == 'finished' and match.total_score_a > match.total_score_b %}winner{% elif match.state == 'finished' and match.total_score_a < match.total_score_b %}loser{% endif %}">
                             {{ match.team_a }}
-                            {% if clan_map.get(match.team_a) %}
-                                <span class="clan-tag">({{ clan_map[match.team_a] }})</span>
-                            {% endif %}
+                            {% if clan_map.get(match.team_a) %}<span class="clan-tag">({{ clan_map[match.team_a] }})</span>{% endif %}
                         </span>
                         <span class="score">{{ match.total_score_a }}</span>
                     </div>
@@ -221,9 +273,7 @@
                     <div class="team-row">
                         <span class="team-name {% if match.team_b == 'TBD' %}tbd{% endif %} {% if match.state == 'finished' and match.total_score_b > match.total_score_a %}winner{% elif match.state == 'finished' and match.total_score_b < match.total_score_a %}loser{% endif %}">
                             {{ match.team_b }}
-                            {% if clan_map.get(match.team_b) %}
-                                <span class="clan-tag">({{ clan_map[match.team_b] }})</span>
-                            {% endif %}
+                            {% if clan_map.get(match.team_b) %}<span class="clan-tag">({{ clan_map[match.team_b] }})</span>{% endif %}
                         </span>
                         <span class="score">{{ match.total_score_b }}</span>
                     </div>
@@ -240,14 +290,9 @@
             </div>
             {% endfor %}
         </div>
-
-    </div>
-    {% else %}
-    <div style="text-align: center; padding: 40px; color: #666; border: 2px dashed #333; border-radius: 8px;">
-        Momentan keine aktiven K.O. Turniere.
     </div>
     {% endfor %}
-
+    {% endif %}
 
     {% if archived_tournaments %}
     <div style="margin-top: 60px;">
@@ -255,49 +300,15 @@
             <summary style="cursor: pointer; color: #888; font-size: 1.1rem; user-select: none;">
                 📂 Archivierte Turniere anzeigen ({{ archived_tournaments|length }})
             </summary>
-            
             {% for tournament in archived_tournaments %}
             <div class="card" style="margin-top: 20px; border-left: 5px solid #666; background: #111; opacity: 0.8;">
-                <div style="display: flex; align-items: center; border-bottom: 1px solid #333; padding-bottom: 10px;">
-                    <h3 style="margin: 0; color: #aaa;">{{ tournament.name }} (Archiviert)</h3>
-                    
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <h3 style="margin: 0; color: #aaa;">{{ tournament.name }}</h3>
                     {% if current_user.is_admin %}
-                    <div class="admin-controls">
-                        <form action="{{ url_for('archive_tournament', t_id=tournament.id) }}" method="POST" title="Wiederherstellen">
-                            <button type="submit" class="btn-icon">🔄</button>
-                        </form>
-                        <form action="{{ url_for('delete_tournament', t_id=tournament.id) }}" method="POST" onsubmit="return confirm('Wirklich löschen?');">
-                            <button type="submit" class="btn-icon" style="color: #d32f2f;">🗑️</button>
-                        </form>
-                    </div>
+                    <form action="{{ url_for('archive_tournament', t_id=tournament.id) }}" method="POST">
+                        <button type="submit" class="btn-icon">🔄 Wiederherstellen</button>
+                    </form>
                     {% endif %}
-                </div>
-                
-                <div class="bracket-container" style="padding: 10px 0;">
-                    {% set rounds = tournament.matches|groupby('round_number') %}
-                    {% for round_num, matches in rounds %}
-                    <div class="bracket-round" style="min-width: 180px;">
-                        <div class="round-title">Runde {{ round_num }}</div>
-                        {% for match in matches|sort(attribute='match_index') %}
-                        <div class="match-card" style="pointer-events: none; border-color: #333; padding: 8px;">
-                            <div class="team-row">
-                                <span class="team-name">
-                                    {{ match.team_a }}
-                                    {% if clan_map.get(match.team_a) %}<span class="clan-tag">({{ clan_map[match.team_a] }})</span>{% endif %}
-                                </span>
-                                <span class="score">{{ match.total_score_a }}</span>
-                            </div>
-                            <div class="team-row">
-                                <span class="team-name">
-                                    {{ match.team_b }}
-                                    {% if clan_map.get(match.team_b) %}<span class="clan-tag">({{ clan_map[match.team_b] }})</span>{% endif %}
-                                </span>
-                                <span class="score">{{ match.total_score_b }}</span>
-                            </div>
-                        </div>
-                        {% endfor %}
-                    </div>
-                    {% endfor %}
                 </div>
             </div>
             {% endfor %}

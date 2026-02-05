@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container" style="max-width: 800px;">
+    <h2>🏅 Neue LIGA erstellen</h2>
+    <p style="color: #aaa; margin-bottom: 20px;">Modus: Jeder gegen Jeden (Round Robin) mit Ban/Pick System.</p>
+    
+    <div class="card">
+        <form method="POST">
+            <label style="color: #aaa;">Liga Name</label>
+            <input type="text" name="league_name" placeholder="z.B. Pro League Season 1" required 
+                   style="width: 100%; padding: 15px; background: #1a1a1a; border: 1px solid #444; color: white; margin-bottom: 20px;">
+
+            <label style="color: #aaa;">Teilnehmer wählen</label>
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 10px;">
+                {% for user in users %}
+                <label style="background: #222; padding: 10px; border: 1px solid #444; cursor: pointer; display: flex; align-items: center; gap: 10px;">
+                    <input type="checkbox" name="selected_users" value="{{ user.username }}">
+                    <span>{{ user.username }}</span>
+                </label>
+                {% endfor %}
+            </div>
+
+            <button type="submit" class="btn" style="width: 100%; margin-top: 30px; background: #ff4081;">
+                Liga Starten 🚀
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}
