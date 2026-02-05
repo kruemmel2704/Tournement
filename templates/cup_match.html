@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    /* ... (Grid Styles wie oben) ... */
+    .map-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; margin-bottom: 30px; }
+    .map-card { background: #2a2a2a; border: 2px solid #444; border-radius: 8px; overflow: hidden; position: relative; cursor: pointer; transition: transform 0.2s, border-color 0.2s; padding: 0; width: 100%; }
+    .map-card:hover:not(:disabled) { transform: scale(1.05); border-color: #fff; }
+    .map-image { width: 100%; height: 100px; object-fit: cover; display: block; }
+    .map-name { padding: 5px; text-align: center; font-weight: bold; color: white; background: rgba(0,0,0,0.8); position: absolute; bottom: 0; width: 100%; font-size: 0.9rem; }
+    .is-picked { filter: grayscale(100%); border-color: #4caf50; cursor: not-allowed; opacity: 0.5; }
+    .picked-badge { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(76, 175, 80, 0.4); display: flex; justify-content: center; align-items: center; color: white; font-weight: bold; font-size: 1.2rem; text-shadow: 0 0 5px black; opacity: 0; transition: opacity 0.3s; }
+    .picked-badge { display: none; }
+    .is-picked .picked-badge { display: flex; }
+    .chat-container { background: #1a1a1a; border: 1px solid #333; border-radius: 8px; margin-top: 30px; display: flex; flex-direction: column; height: 400px; }
+</style>
+
+<div class="container" style="max-width: 1000px;">
+    
+    <div class="card" style="text-align: center; margin-bottom: 20px;">
+        <h2>{{ match.team_a }} <span style="color:#aaa">VS</span> {{ match.team_b }}</h2>
+        <div style="margin-top: 10px; font-weight: bold; color: #9c27b0;" id="statusDisplay">
+            STATUS: {{ match.state|upper|replace('_', ' ') }}
+        </div>
+    </div>
+
+    <div id="readySection" class="card" style="text-align: center; display: {% if match.state == 'waiting_for_ready' %}block{% else %}none{% endif %};">
+        <h3>Sind beide Teams bereit?</h3>
+        <div style="display: flex; justify-content: space-around; margin-top: 20px;">
+            <div>
+                <h4>{{ match.team_a }}</h4>
+                <div id="readyIndicatorA">{% if match.ready_a %} <span style="color:#4caf50; font-size: 2em;">✔ BEREIT</span>{% else %} <span style="color:#f44336;">Wartet...</span> {% endif %}</div>
+                {% if current_user.username == match.team_a %}<form method="POST"><button name="toggle_ready" class="btn" style="margin-top: 10px;">Bereit</button></form>{% endif %}
+            </div>
+            <div>
+                <h4>{{ match.team_b }}</h4>
+                <div id="readyIndicatorB">{% if match.ready_b %} <span style="color:#4caf50; font-size: 2em;">✔ BEREIT</span>{% else %} <span style="color:#f44336;">Wartet...</span> {% endif %}</div>
+                {% if current_user.username == match.team_b %}<form method="POST"><button name="toggle_ready" class="btn" style="margin-top: 10px;">Bereit</button></form>{% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div id="pickingSection" class="card" style="display: {% if match.state == 'picking' %}block{% else %}none{% endif %};">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3>🗺️ Map Wahl</h3>
+            <div style="text-align: right;">Dran ist: <strong id="currentPickerDisplay" style="font-size: 1.2rem; color: #2196f3;">{{ match.current_picker }}</strong></div>
+        </div>
+        <form method="POST">
+            <div class="map-grid">
+                {% for map in all_maps %}
+                    <button type="submit" name="pick_map" value="{{ map.name }}" id="btn-map-{{ map.name|replace(' ', '-') }}" class="map-card {% if map.name in picked %}is-picked{% endif %}" {% if map.name in picked or current_user.username != match.current_picker %}disabled{% endif %}>
+                        <img src="{{ url_for('static', filename='map_images/' + map.image_file) }}" class="map-image">
+                        <div class="map-name">{{ map.name }}</div>
+                        <div class="picked-badge">GEWÄHLT</div>
+                    </button>
+                {% endfor %}
+            </div>
+        </form>
+        <div id="waitMessage" style="text-align: center; color: #aaa; margin-top: 10px; display: none;">⏳ Warte auf Gegner...</div>
+    </div>
+
+    <div id="lobbySection" class="card" style="text-align: center; border: 2px solid #ff9800; display: {% if match.state in ['waiting_for_code', 'in_progress', 'finished'] %}block{% else %}none{% endif %};">
+        <h3>🔑 LOBBY CODE</h3>
+        <div id="lobbyCodeDisplay" style="font-size: 2.5rem; letter-spacing: 5px; font-weight: bold; color: #ff9800; margin: 20px 0;">{% if match.lobby_code %}{{ match.lobby_code }}{% else %}Warten auf Admin...{% endif %}</div>
+        
+        {% if current_user.is_admin or current_user.is_mod %}
+            <form method="POST" style="margin-top: 10px;">
+                <input type="text" name="lobby_code" placeholder="Code eingeben" value="{{ match.lobby_code or '' }}" style="padding: 10px;">
+                <button name="set_lobby_code" class="btn-small">Senden</button>
+            </form>
+        {% endif %}
+    </div>
+
+    <div id="pickedListSection" class="card" style="margin-top: 20px; display: {% if picked %}block{% else %}none{% endif %};">
+        <h4>Zu spielende Karten:</h4>
+        <div id="pickedMapsContainer" style="display: flex; gap: 15px; overflow-x: auto; padding-bottom: 10px;">
+            {% for m_name in picked %}
+                {% set map_obj = all_maps | selectattr('name', 'equalto', m_name) | first %}
+                <div style="min-width: 140px; text-align: center; background: #222; border: 1px solid #444; border-radius: 4px; overflow: hidden;">
+                    {% if map_obj %}<img src="{{ url_for('static', filename='map_images/' + map_obj.image_file) }}" style="width: 100%; height: 70px; object-fit: cover;">{% endif %}
+                    <div style="padding: 5px; font-weight: bold; font-size: 0.9rem;">{{ loop.index }}. {{ m_name }}</div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    {% if current_user.is_admin or current_user.is_mod %}
+    <div id="adminScoreSection" class="card" style="border-left: 5px solid #f44336; margin-top: 20px; display: {% if match.state in ['in_progress', 'finished'] %}block{% else %}none{% endif %};">
+        <h3 style="color: #f44336;">👮 Admin/Mod Panel: Ergebnisse</h3>
+        <form method="POST">
+            <table style="width: 100%; margin-bottom: 20px;">
+                <tr><th style="text-align: left;">Map</th><th>{{ match.team_a }}</th><th>{{ match.team_b }}</th></tr>
+                {% for i in range(6) %}
+                <tr>
+                    <td style="padding: 5px;">Map {{ i+1 }}</td>
+                    <td style="text-align: center;"><input type="number" name="score_a_{{i}}" style="width: 50px;" value="{{ match.get_scores_a()[i] if match.state=='finished' else 0 }}"></td>
+                    <td style="text-align: center;"><input type="number" name="score_b_{{i}}" style="width: 50px;" value="{{ match.get_scores_b()[i] if match.state=='finished' else 0 }}"></td>
+                </tr>
+                {% endfor %}
+            </table>
+            <button name="submit_scores" class="btn" style="background: #f44336; width: 100%;">Ergebnisse Speichern</button>
+        </form>
+    </div>
+    {% endif %}
+
+    <div class="chat-container">
+        <div id="chatBox" style="flex: 1; overflow-y: auto; padding: 10px;"></div>
+        <div style="display: flex; padding: 10px; border-top: 1px solid #333;">
+            <input type="text" id="msgInput" style="flex: 1; padding: 10px; background: #222; border: none; color: white;" placeholder="Nachricht...">
+            <button onclick="sendMsg()" class="btn-small">Senden</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const matchId = {{ match.id }};
+    const currentUser = "{{ current_user.username }}";
+    // HIER WERDEN DIE BILDER FÜR JAVASCRIPT BEREITGESTELLT:
+    const mapImages = { {% for map in all_maps %} "{{ map.name }}": "{{ map.image_file }}", {% endfor %} };
+
+    const chatBox = document.getElementById('chatBox');
+    const lobbyDisplay = document.getElementById('lobbyCodeDisplay');
+    const pickerDisplay = document.getElementById('currentPickerDisplay');
+    const pickedContainer = document.getElementById('pickedMapsContainer');
+    const statusDisplay = document.getElementById('statusDisplay');
+    const readySec = document.getElementById('readySection');
+    const pickingSec = document.getElementById('pickingSection');
+    const lobbySec = document.getElementById('lobbySection');
+    const pickedListSec = document.getElementById('pickedListSection');
+    const adminSec = document.getElementById('adminScoreSection');
+
+    async function updateState() {
+        try {
+            const res = await fetch(`/api/cup_match/${matchId}/state`);
+            const data = await res.json();
+            
+            statusDisplay.innerText = "STATUS: " + data.state.toUpperCase().replace('_', ' ');
+            readySec.style.display = (data.state === 'waiting_for_ready') ? 'block' : 'none';
+            pickingSec.style.display = (data.state === 'picking') ? 'block' : 'none';
+            const isLateGame = ['waiting_for_code', 'in_progress', 'finished'].includes(data.state);
+            lobbySec.style.display = isLateGame ? 'block' : 'none';
+            
+            if (data.state === 'waiting_for_ready') {
+                document.getElementById('readyIndicatorA').innerHTML = data.ready_a ? '<span style="color:#4caf50; font-size: 2em;">✔ BEREIT</span>' : '<span style="color:#f44336;">Wartet...</span>';
+                document.getElementById('readyIndicatorB').innerHTML = data.ready_b ? '<span style="color:#4caf50; font-size: 2em;">✔ BEREIT</span>' : '<span style="color:#f44336;">Wartet...</span>';
+            }
+            if (data.state === 'picking') {
+                pickerDisplay.innerText = data.current_picker;
+                pickerDisplay.style.color = (data.current_picker === currentUser) ? '#4caf50' : '#2196f3';
+                const waitMsg = document.getElementById('waitMessage');
+                if(waitMsg) waitMsg.style.display = (data.current_picker !== currentUser) ? 'block' : 'none';
+                const buttons = document.querySelectorAll('button[name="pick_map"]');
+                buttons.forEach(btn => {
+                    const isPicked = data.picked.includes(btn.value);
+                    if (isPicked) btn.classList.add('is-picked'); else btn.classList.remove('is-picked');
+                    btn.disabled = isPicked || (data.current_picker !== currentUser);
+                });
+            }
+            // HIER NUTZT JS DIE BILDER FÜR DIE "GEWÄHLT" LISTE
+            if (data.picked.length > 0) {
+                pickedListSec.style.display = 'block';
+                pickedContainer.innerHTML = data.picked.map((m, i) => {
+                    const imgFile = mapImages[m] || 'default.jpg';
+                    return `<div style="min-width: 140px; text-align: center; background: #222; border: 1px solid #444; border-radius: 4px; overflow: hidden;"><img src="/static/map_images/${imgFile}" style="width: 100%; height: 70px; object-fit: cover;"><div style="padding: 5px; font-weight: bold; font-size: 0.9rem;">${i+1}. ${m}</div></div>`;
+                }).join('');
+            }
+            if (isLateGame) lobbyDisplay.innerText = data.lobby_code ? data.lobby_code : "Warten auf Admin...";
+        } catch (e) { }
+    }
+
+    async function sendMsg() {
+        const txt = document.getElementById('msgInput').value;
+        if(!txt) return;
+        await fetch(`/api/cup_match/${matchId}/chat`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({message: txt}) });
+        document.getElementById('msgInput').value = '';
+        loadChat();
+    }
+
+    async function loadChat() {
+        try {
+            const res = await fetch(`/api/cup_match/${matchId}/chat`);
+            const data = await res.json();
+            chatBox.innerHTML = data.map(m => {
+                let badge = '';
+                let color = '#333';
+                if (m.is_admin) { badge = '🛡️ '; color = '#e65100'; }
+                else if (m.is_mod) { badge = '🛡️ '; color = '#00bcd4'; }
+
+                return `<div style="margin-bottom: 5px; text-align: ${m.is_me ? 'right':'left'}">
+                    <span style="font-size: 0.7em; color: #888;">${badge}${m.user}</span><br>
+                    <span style="background: ${m.is_me ? '#1976d2' : color}; padding: 5px 10px; border-radius: 4px; display: inline-block; color: white;">${m.text}</span>
+                </div>`;
+            }).join('');
+        } catch(e) {}
+    }
+
+    setInterval(() => { updateState(); loadChat(); }, 2000);
+    updateState(); loadChat();
+</script>
+{% endblock %}
