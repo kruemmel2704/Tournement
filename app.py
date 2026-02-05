@@ -112,12 +112,20 @@ def load_user(user_id):
     return User.query.get(int(user_id))
 
 def create_initial_admin():
-    if User.query.count() == 0:
+    # Wir schauen gezielt nach dem Nutzer 'admin'
+    admin = User.query.filter_by(username='admin').first()
+    
+    if admin:
+        # Falls Admin existiert: NICHTS TUN.
+        # So bleibt ein geändertes Passwort erhalten.
+        print(f"Admin-Account '{admin.username}' gefunden. Passwort wird nicht überschrieben.")
+    else:
+        # Nur wenn KEIN Admin da ist, erstellen wir einen neuen
         hashed_pw = generate_password_hash("admin123", method='pbkdf2:sha256')
-        admin = User(username="admin", password=hashed_pw, is_admin=True)
-        db.session.add(admin)
+        new_admin = User(username="admin", password=hashed_pw, is_admin=True)
+        db.session.add(new_admin)
         db.session.commit()
-        print("Admin Account erstellt.")
+        print("Initialer Admin Account wurde erstellt (PW: admin123).")
 
 # --- Hilfs-Decorator für Clan-Bereich ---
 def clan_required(f):
