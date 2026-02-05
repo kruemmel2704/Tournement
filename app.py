@@ -670,6 +670,10 @@ def lobby_code_api(match_id):
     
     return json.dumps({'status': 'ok', 'new_code': new_code}), 200
 
+@app.route('/rules')
+def rules():
+    return render_template('rules.html')
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()

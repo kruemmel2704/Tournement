@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container" style="max-width: 900px;">
+    
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+        <h1 style="border-bottom: 3px solid #ff5722; padding-bottom: 10px;">📜 Infernus Regelwerk</h1>
+        <a href="{{ url_for('dashboard') }}" class="btn" style="background: #555;">Zurück</a>
+    </div>
+
+    <div class="card" style="margin-bottom: 30px;">
+        <h2 style="color: #ff9800;">1. Waffen & Aufsätze</h2>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div>
+                <h4>Erlaubte Waffen</h4>
+                <ul style="color: #ccc; line-height: 1.6;">
+                    <li><strong>Sturmgewehre:</strong> M15, AK27, MXR 17, Maverick, Friedenstifter MK1</li>
+                    <li><strong>MPs:</strong> Dravec 45, Rk 9, Ryden 45K, Razor 9MM, Mpc 25</li>
+                    <li><strong>Pistolen:</strong> Jäger 45</li>
+                    <li><strong>Nahkampf:</strong> Standard Messer</li>
+                </ul>
+            </div>
+            <div>
+                <h4>Granaten</h4>
+                <ul style="color: #ccc; line-height: 1.6;">
+                    <li><strong>Primär:</strong> Splittergranate, Semtex</li>
+                    <li><strong>Taktik:</strong> Betäubung, Blend, Rauch</li>
+                </ul>
+            </div>
+        </div>
+
+        <h4 style="margin-top: 20px;">Aufsätze</h4>
+        <ul style="color: #ccc;">
+            <li>❌ <strong>Verboten:</strong> 16 Os Dichte Lauf, 19,5 Nebel Lauf, Zielsucher, Millimeter Scanner, Werfer (Unterlauf).</li>
+            <li>✅ <strong>Erlaubt:</strong> Alle anderen Visiere (< 1.5x), Schäfte, Griffe, Standard Magazine, Pufferfeder, Vollmantel, Überdruck. Prestige Aufsätze sind erlaubt.</li>
+        </ul>
+    </div>
+
+    <div class="card" style="margin-bottom: 30px;">
+        <h2 style="color: #2196f3;">2. Extras (Perks)</h2>
+        <table style="width: 100%; border-collapse: collapse; color: #ddd;">
+            <tr style="border-bottom: 1px solid #444;">
+                <td style="padding: 10px;"><strong>Extra 1</strong></td>
+                <td>Taktiksprinter, Gung Ho, Leichtgewicht, Ninja</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #444;">
+                <td style="padding: 10px;"><strong>Extra 2</strong></td>
+                <td>Flinke Hände, Technikmaske</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #444;">
+                <td style="padding: 10px;"><strong>Extra 3</strong></td>
+                <td>Gewandheit</td>
+            </tr>
+            <tr>
+                <td style="padding: 10px;"><strong>Wildcard</strong></td>
+                <td>Extra Gier</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="card" style="margin-bottom: 30px;">
+        <h2 style="color: #4caf50;">3. Maps & Skins</h2>
+        <div style="display: flex; gap: 40px;">
+            <div style="flex: 1;">
+                <h4>Map Pool</h4>
+                <div style="column-count: 2; color: #ccc;">
+                    Blackheart<br>Colossus<br>Cortex<br>Den<br>Exposure<br>Express<br>Fate<br>
+                    Hijacked<br>Homestead<br>Odysseus<br>Raid<br>Scar<br>Standoff<br>The Forge<br>Toshin<br>Utopia
+                </div>
+            </div>
+            <div style="flex: 1;">
+                <h4>Erlaubte Skins</h4>
+                <ul style="color: #ccc;">
+                    <li><strong>Jsoc:</strong> Mason (Starker Instinkt), Wei Lin (Fleißig)</li>
+                    <li><strong>Gilde:</strong> Grimm (Autonomie), Razor (Kampfgefahr)</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="card" style="border-left: 5px solid #e91e63;">
+        <h2 style="color: #e91e63;">4. Lobby Einstellungen</h2>
+        <p style="color: #aaa;">Modus: 4vs4 HC All S&D</p>
+        
+        <style>
+            .settings-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 0.9rem; }
+            .settings-table th { text-align: left; border-bottom: 2px solid #555; padding: 8px; color: #ff9800; }
+            .settings-table td { border-bottom: 1px solid #333; padding: 8px; color: #ccc; }
+            .settings-table tr:hover { background: #252525; }
+            .val { color: white; font-weight: bold; text-align: right; }
+        </style>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
+            
+            <div>
+                <table class="settings-table">
+                    <thead><tr><th colspan="2">Spiel</th></tr></thead>
+                    <tbody>
+                        <tr><td>Rundenzeitlimit</td><td class="val">1 Min 30</td></tr>
+                        <tr><td>Rundensieglimit</td><td class="val">10 Runden</td></tr>
+                        <tr><td>2Vorsprungregel</td><td class="val">Aus</td></tr>
+                        <tr><td>2Vorsprungregel max Runden</td><td class="val">8 Runden</td></tr>
+                        <tr><td>Rundenwechsel</td><td class="val">Jede Runde</td></tr>
+                        <tr><td>Spiel Countdown</td><td class="val">45 Sek.</td></tr>
+                        <tr><td>Runden Countdown</td><td class="val">10</td></tr>
+                        <tr><td>Übungsrunde</td><td class="val" style="color:#4caf50;">An</td></tr>
+                        <tr><td>Eingabewechsel erlauben</td><td class="val">Aus</td></tr>
+                        <tr><td>Infopings zulassen</td><td class="val" style="color:#4caf50;">An</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div>
+                <table class="settings-table">
+                    <thead><tr><th colspan="2">Erweitert</th></tr></thead>
+                    <tbody>
+                        <tr><td>Bombentimer</td><td class="val">45 Sek.</td></tr>
+                        <tr><td>Platzierungszeit</td><td class="val">5 sek</td></tr>
+                        <tr><td>Entschärfungszeit</td><td class="val">7.5 Sek.</td></tr>
+                        <tr><td>Lautloses Platzieren</td><td class="val" style="color:#4caf50;">An</td></tr>
+                        <tr><td>Platzieren/Entschärfen zurücksetzen</td><td class="val" style="color:#4caf50;">An</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <table class="settings-table">
+            <thead><tr><th colspan="4">Spieler</th></tr></thead>
+            <tbody>
+                <tr>
+                    <td>Anzahl der Leben</td><td class="val">1 Leben</td>
+                    <td>Waffe Aufstützen</td><td class="val">Aus</td>
+                </tr>
+                <tr>
+                    <td>Maximale Gesundheit</td><td class="val" style="color:#f44336;">20</td>
+                    <td>Wiederbeleben zulassen</td><td class="val">Aus</td>
+                </tr>
+                <tr>
+                    <td>Regeneration</td><td class="val" style="color:#f44336;">Ohne</td>
+                    <td>Gesundheit wenn Niedergestreckt</td><td class="val">40</td>
+                </tr>
+                <tr>
+                    <td>Externe Ansicht</td><td class="val">Aus</td>
+                    <td>Gesundheit nach Wiederbelebung</td><td class="val">Halb 50</td>
+                </tr>
+                <tr>
+                    <td>Taktiksprint</td><td class="val" style="color:#4caf50;">An</td>
+                    <td>Verblutungszeit</td><td class="val">10 Sek.</td>
+                </tr>
+                <tr>
+                    <td>Wiederbelebungsdauer</td><td class="val">2 Sek.</td>
+                    <td>Aufgabeverzögerung</td><td class="val">1 Sek.</td>
+                </tr>
+                <tr>
+                    <td>Teamwiederbelebungsende</td><td class="val">Unbegrenzt</td>
+                    <td>Teamwiederbelebungszeit</td><td class="val">5 Sek.</td>
+                </tr>
+                <tr>
+                    <td>Teamwiederbelebungsgesundheit</td><td class="val">40</td>
+                    <td></td><td></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <table class="settings-table">
+            <thead><tr><th colspan="4">Team</th></tr></thead>
+            <tbody>
+                <tr>
+                    <td>Zuschauen</td><td class="val">Spielersicht</td>
+                    <td>Einstiegsverzögerung</td><td class="val">Ohne</td>
+                </tr>
+                <tr>
+                    <td>Externe Zuschaueransicht</td><td class="val">Aus</td>
+                    <td>Wellen Einstiegsverzögerung</td><td class="val">Ohne</td>
+                </tr>
+                <tr>
+                    <td>Abschusskamera</td><td class="val" style="color:#4caf50;">An</td>
+                    <td>Einstiegsverzögerung nach Suizid</td><td class="val">Ohne</td>
+                </tr>
+                <tr>
+                    <td>Minikarte aktivieren</td><td class="val">Aus</td>
+                    <td>Einstieg erzwingen</td><td class="val" style="color:#4caf50;">An</td>
+                </tr>
+                <tr>
+                    <td>Radar immer an</td><td class="val">Aus</td>
+                    <td>Team Zuteilung</td><td class="val" style="color:#4caf50;">An</td>
+                </tr>
+                <tr>
+                    <td>Waffenpings auf der Minikarte</td><td class="val">Aus</td>
+                    <td>Teambeschuss</td><td class="val" style="color:#4caf50;">An</td>
+                </tr>
+                <tr>
+                    <td>Waffenpings auf dem Kompass</td><td class="val">Aus</td>
+                    <td>Teambeschuss Strafgrenze</td><td class="val">2 Abschüsse</td>
+                </tr>
+                <tr>
+                    <td>Feind auf dem Kompass</td><td class="val">Aus</td>
+                    <td></td><td></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <table class="settings-table">
+            <thead><tr><th colspan="4">Gameplay</th></tr></thead>
+            <tbody>
+                <tr>
+                    <td>Hardcore</td><td class="val" style="color:#4caf50;">An</td>
+                    <td>Serie nach Tod behalten</td><td class="val" style="color:#4caf50;">An</td>
+                </tr>
+                <tr>
+                    <td>Nur Kopfschüsse</td><td class="val">Aus</td>
+                    <td>Abschussserien Verzögerung</td><td class="val">10 Sek.</td>
+                </tr>
+                <tr>
+                    <td>Gesundheit stehlen</td><td class="val">Aus</td>
+                    <td>Bleibender Serien Fortschritt</td><td class="val">Aus</td>
+                </tr>
+                <tr>
+                    <td>Feldausrüstung erlauben</td><td class="val">Aus</td>
+                    <td>Mehrfache Punkteserien</td><td class="val">Aus</td>
+                </tr>
+                <tr>
+                    <td>Feldausrüstung Laderate</td><td class="val">Normal</td>
+                    <td>Ausrüstungsverzögerung</td><td class="val">Aus</td>
+                </tr>
+                <tr>
+                    <td>Feldausrüstung Modifikator</td><td class="val">Normal</td>
+                    <td>Schutz vor Ausrüstung</td><td class="val">7.5 Sek</td>
+                </tr>
+                <tr>
+                    <td>Extras</td><td class="val" style="color:#4caf50;">An</td>
+                    <td>Kampfrufe</td><td class="val">Aus</td>
+                </tr>
+                <tr>
+                    <td>Punkteserien</td><td class="val">Aus</td>
+                    <td>Ansagerdialoge</td><td class="val">Aus</td>
+                </tr>
+                <tr>
+                    <td>Serien nach Rundenende behalten</td><td class="val" style="color:#4caf50;">An</td>
+                    <td>Dynamische Kartenelemente</td><td class="val">Aus</td>
+                </tr>
+            </tbody>
+        </table>
+
+    </div>
+
+</div>
+{% endblock %}
