@@ -2,40 +2,178 @@
 
 {% block content %}
 <style>
-    /* Styles für Maps und Karten */
-    .map-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 15px; margin-bottom: 30px; }
-    .map-card { background: #2a2a2a; border: 2px solid #444; border-radius: 8px; overflow: hidden; position: relative; cursor: pointer; transition: transform 0.2s; padding: 0; width: 100%; }
-    .map-card:hover:not(:disabled) { transform: scale(1.05); border-color: #fff; }
-    .map-image { width: 100%; height: 100px; object-fit: cover; display: block; }
-    .map-name { padding: 8px; text-align: center; font-weight: bold; color: white; background: rgba(0,0,0,0.8); position: absolute; bottom: 0; width: 100%; }
-    
-    .is-banned { filter: grayscale(100%); border-color: #5a1a1a; cursor: not-allowed; }
-    .banned-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.6); display: flex; justify-content: center; align-items: center; z-index: 10; }
-    .banned-text { color: #ff4444; border: 3px solid #ff4444; padding: 5px 15px; font-weight: 900; transform: rotate(-15deg); font-size: 1.2rem; letter-spacing: 2px; }
+    /* --- MAP GRID STYLES --- */
+    .map-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 15px;
+        margin-bottom: 30px;
+    }
+    .map-card {
+        background: #2a2a2a;
+        border: 2px solid #444;
+        border-radius: 8px;
+        overflow: hidden;
+        position: relative;
+        cursor: pointer;
+        transition: transform 0.2s;
+        padding: 0;
+        width: 100%;
+    }
+    .map-card:hover:not(:disabled) {
+        transform: scale(1.05);
+        border-color: #fff;
+    }
+    .map-image {
+        width: 100%;
+        height: 100px;
+        object-fit: cover;
+        display: block;
+    }
+    .map-name {
+        padding: 8px;
+        text-align: center;
+        font-weight: bold;
+        color: white;
+        background: rgba(0,0,0,0.8);
+        position: absolute;
+        bottom: 0;
+        width: 100%;
+    }
 
-    .is-picked { border-color: #2e7d32; box-shadow: 0 0 10px #2e7d32; }
-    .picked-badge { position: absolute; top: 5px; right: 5px; background: #2e7d32; color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 0.8rem; }
+    /* BANNED / PICKED OVERLAYS */
+    .is-banned {
+        filter: grayscale(100%);
+        border-color: #5a1a1a;
+        cursor: not-allowed;
+        opacity: 0.6;
+    }
+    .banned-overlay {
+        position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0, 0, 0, 0.6);
+        display: flex; justify-content: center; align-items: center; z-index: 10;
+    }
+    .banned-text {
+        color: #ff4444; border: 3px solid #ff4444; padding: 5px 15px;
+        font-weight: 900; transform: rotate(-15deg); font-size: 1.2rem; letter-spacing: 2px;
+    }
+    .is-picked {
+        border-color: #2e7d32;
+        box-shadow: 0 0 10px #2e7d32;
+    }
+    .picked-badge {
+        position: absolute; top: 5px; right: 5px;
+        background: #2e7d32; color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 0.8rem;
+    }
+
+    /* --- LOBBY CODE BOX --- */
+    .lobby-code-box {
+        background: #252525; 
+        padding: 15px; 
+        border-radius: 6px; 
+        margin-bottom: 20px; 
+        border: 1px solid #444; 
+        display: flex; 
+        align-items: center; 
+        justify-content: space-between;
+        gap: 15px;
+    }
+    .save-code-btn {
+        background: #4caf50; color: white; border: none; padding: 10px 15px;
+        border-radius: 4px; cursor: pointer; font-weight: bold; transition: background 0.2s;
+    }
+    .save-code-btn:hover { background: #43a047; }
+    #codeSaveStatus { font-size: 0.8em; margin-left: 10px; opacity: 0; transition: opacity 0.5s; }
+
+    /* --- CHAT STYLES --- */
+    .chat-container {
+        background: #1a1a1a;
+        border: 1px solid #333;
+        border-radius: 8px;
+        margin-top: 30px;
+        display: flex;
+        flex-direction: column;
+        height: 400px;
+    }
+    .chat-header {
+        background: #252525; padding: 10px 15px; border-bottom: 1px solid #333; font-weight: bold;
+        display: flex; justify-content: space-between; align-items: center;
+    }
+    .chat-messages {
+        flex: 1; overflow-y: auto; padding: 15px;
+        display: flex; flex-direction: column; gap: 10px;
+    }
+    .message-bubble {
+        max-width: 80%; padding: 8px 12px; border-radius: 8px; font-size: 0.9rem; position: relative; word-wrap: break-word;
+    }
+    .msg-own { align-self: flex-end; background: #1976d2; color: white; border-bottom-right-radius: 2px; }
+    .msg-other { align-self: flex-start; background: #333; color: #ddd; border-bottom-left-radius: 2px; }
+    .msg-admin { border: 1px solid #ff9800; background: #3a2000; }
+    
+    .msg-meta { font-size: 0.7em; opacity: 0.7; margin-bottom: 2px; display: block; }
+    .chat-input-area {
+        padding: 10px; border-top: 1px solid #333; display: flex; gap: 10px; background: #222;
+    }
+    .chat-input {
+        flex: 1; padding: 10px; border-radius: 4px; border: 1px solid #444; background: #111; color: white;
+    }
+    .chat-btn {
+        padding: 0 20px; background: #4caf50; border: none; border-radius: 4px; color: white; cursor: pointer; font-weight: bold;
+    }
+    .chat-btn:hover { background: #43a047; }
 </style>
 
 <div class="container" style="max-width: 1000px; margin: 0 auto;">
 
-    <div class="card" style="margin-bottom: 20px; text-align: center; border-left: 5px solid 
-        {% if match.state == 'conflict' %}#ff4444
-        {% elif 'ban' in match.state %}#d32f2f
+    <div class="card" style="margin-bottom: 20px; text-align: center; padding: 25px; border-left: 8px solid 
+        {% if 'ban' in match.state %}#d32f2f
         {% elif 'pick' in match.state %}#1976d2
+        {% elif match.state == 'finished' %}#4caf50
         {% else %}#fbc02d{% endif %};">
         
-        <h2>
-            {% if match.state == 'conflict' %}⚠️ KONFLIKT{% else %}{{ match.state|replace('_', ' ')|upper }}{% endif %}
+        <h2 style="margin: 0; font-size: 2rem; line-height: 1.3;">
+            {% if 'ban' in match.state %}
+                <span style="color: #ff5252;">🚫 BANN:</span> <strong style="color: white; border-bottom: 2px solid #ff5252;">{{ active_team }}</strong>
+                <div style="font-size: 0.9rem; color: #aaa; margin-top: 5px; font-weight: normal;">
+                    {{ active_team }} wählt eine Karte, die <u>nicht</u> gespielt wird.
+                </div>
+
+            {% elif 'pick' in match.state %}
+                <span style="color: #448aff;">✅ PICK:</span> <strong style="color: white; border-bottom: 2px solid #448aff;">{{ active_team }}</strong>
+                <div style="font-size: 0.9rem; color: #aaa; margin-top: 5px; font-weight: normal;">
+                    {{ active_team }} wählt eine Karte zum Spielen.
+                </div>
+
+            {% elif match.state == 'scoring_phase' %}
+                📝 Ergebnisse eintragen
+                <div style="font-size: 0.9rem; color: #aaa; margin-top: 5px; font-weight: normal;">
+                    Das Match ist vorbei. Bitte Resultate eingeben.
+                </div>
+
+            {% elif match.state == 'waiting_for_confirmation' %}
+                ⏳ Warte auf Bestätigung...
+                <div style="font-size: 0.9rem; color: #aaa; margin-top: 5px; font-weight: normal;">
+                    Gegner muss das Ergebnis noch bestätigen.
+                </div>
+
+            {% elif match.state == 'conflict' %}
+                ⚠️ KONFLIKT
+                <div style="font-size: 0.9rem; color: #ff5252; margin-top: 5px; font-weight: normal;">
+                    Unterschiedliche Ergebnisse! Ein Admin muss das prüfen.
+                </div>
+
+            {% elif match.state == 'finished' %}
+                🏁 Match Beendet
+            
+            {% else %}
+                Status: {{ match.state }}
+            {% endif %}
         </h2>
-        {% if active_team %}
-            <div style="font-size: 1.2rem;">👉 <strong style="color: #ff9800;">{{ active_team }}</strong> ist dran!</div>
-        {% endif %}
     </div>
 
     {% if match.state not in ['scoring_phase', 'conflict', 'waiting_for_confirmation', 'finished'] %}
         <form method="POST">
-            <h3 style="color:#ccc;">Karten Auswahl</h3>
+            <h3 style="color:#ccc; margin-left: 5px;">Verfügbare Karten:</h3>
             <div class="map-grid">
                 {% for map in all_maps %}
                     {% set is_banned = map.name in banned %}
@@ -48,25 +186,48 @@
                         <img src="{{ url_for('static', filename='map_images/' + map.image_file) }}" class="map-image">
                         <div class="map-name">{{ map.name }}</div>
 
-                        {% if is_banned %}<div class="banned-overlay"><div class="banned-text">BANNED</div></div>{% endif %}
-                        {% if is_picked %}<div class="picked-badge">PICKED</div>{% endif %}
+                        {% if is_banned %}
+                            <div class="banned-overlay"><div class="banned-text">BANNED</div></div>
+                        {% endif %}
+                        {% if is_picked %}
+                            <div class="picked-badge">PICKED</div>
+                        {% endif %}
                     </button>
                 {% endfor %}
             </div>
         </form>
     {% endif %}
 
+
     {% if match.state in ['scoring_phase', 'conflict', 'waiting_for_confirmation', 'finished'] %}
         <div class="card">
-            <h3>Ergebnisse</h3>
             
-            {% if match.state == 'conflict' %}
-                <div style="background: #3e1212; border: 2px solid #ff4444; color: white; padding: 20px; text-align: center; margin-bottom: 20px; border-radius: 8px; animation: pulse-red 2s infinite;">
-                    <h2 style="color: #ff4444; margin-top: 0;">⚠️ MATCH KONFLIKT</h2>
-                    <p style="font-size: 1.1rem;">Ergebnisse stimmen nicht überein!</p>
-                    <p style="color: #aaa;">Bitte Admin kontaktieren zur Korrektur.</p>
+            <div class="lobby-code-box">
+                <div style="flex-grow: 1;">
+                    <div style="display: flex; align-items: center;">
+                        <strong style="color: #ff9800; font-size: 1.1em;">🔑 Lobby Code:</strong>
+                        <span id="codeSaveStatus" style="color: #4caf50;">✅ Gespeichert!</span>
+                    </div>
+                    <div style="font-size: 0.8em; color: #aaa; margin-top: 4px;">
+                        Code hier eintragen. Synchronisiert sich automatisch.
+                    </div>
                 </div>
-                <style>@keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(255,68,68,0.4); } 70% { box-shadow: 0 0 0 10px rgba(255,68,68,0); } 100% { box-shadow: 0 0 0 0 rgba(255,68,68,0); } }</style>
+                
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="lobbyCodeInput" 
+                           value="{{ match.lobby_code if match.lobby_code else '' }}" 
+                           placeholder="Code..." 
+                           style="background: #111; border: 1px solid #555; color: white; padding: 10px; font-size: 1.1em; width: 180px; text-align: center; border-radius: 4px; letter-spacing: 2px;">
+                    
+                    <button class="save-code-btn" onclick="saveLobbyCode()" title="Manuell speichern">💾</button>
+                </div>
+            </div>
+
+            <h3>Ergebnisse</h3>
+            {% if match.state == 'conflict' %}
+                <div style="background:#5a1a1a; color:#ff8888; padding:10px; border:1px solid red; text-align:center; margin-bottom: 15px;">
+                    ⚠️ Die Teams haben unterschiedliche Ergebnisse eingetragen. Bitte korrigieren.
+                </div>
             {% endif %}
 
             <form method="POST">
@@ -93,13 +254,17 @@
                                     <span style="font-style:italic; color:#666;">(Keine Map)</span>
                                 {% endif %}
                             </td>
+                            
                             <td style="text-align:center;">
-                                <input type="number" name="score_a_{{ i }}" min="0" style="width:50px; text-align:center; padding:5px; background: #222; color: white; border: 1px solid #555;"
+                                <input type="number" name="score_a_{{ i }}" min="0"
+                                       style="width:50px; text-align:center; padding:5px; background: #222; color: white; border: 1px solid #555;"
                                        value="{% if match.state == 'finished' and saved_a|length >= i %}{{ saved_a[i-1] }}{% else %}0{% endif %}"
                                        {% if match.state == 'finished' %}disabled{% endif %}>
                             </td>
+
                             <td style="text-align:center;">
-                                <input type="number" name="score_b_{{ i }}" min="0" style="width:50px; text-align:center; padding:5px; background: #222; color: white; border: 1px solid #555;"
+                                <input type="number" name="score_b_{{ i }}" min="0"
+                                       style="width:50px; text-align:center; padding:5px; background: #222; color: white; border: 1px solid #555;"
                                        value="{% if match.state == 'finished' and saved_b|length >= i %}{{ saved_b[i-1] }}{% else %}0{% endif %}"
                                        {% if match.state == 'finished' %}disabled{% endif %}>
                             </td>
@@ -109,19 +274,141 @@
                 </table>
 
                 {% if match.state != 'finished' %}
-                <button type="submit" class="btn" style="width:100%; background:#d32f2f; color:white;">
-                    {% if match.state == 'conflict' %}Korrektur Senden (Admin){% else %}Ergebnisse Senden{% endif %}
+                <button type="submit" class="btn" style="width:100%; background:#d32f2f; color:white; padding: 12px; font-size: 1.1rem;">
+                    Ergebnisse Senden 📤
                 </button>
                 {% endif %}
             </form>
         </div>
     {% endif %}
+
+    <div class="chat-container">
+        <div class="chat-header">
+            <span>💬 Match Chat</span>
+            <span style="font-size: 0.8em; color: #888; font-weight: normal;">Live</span>
+        </div>
+        <div class="chat-messages" id="chatBox">
+            <div style="text-align: center; color: #555; margin-top: 20px;">Lade Chat...</div>
+        </div>
+        <div class="chat-input-area">
+            <input type="text" id="msgInput" class="chat-input" placeholder="Nachricht schreiben..." onkeypress="handleEnter(event)">
+            <button class="chat-btn" onclick="sendMessage()">Senden</button>
+        </div>
+    </div>
+
 </div>
 
 <script>
+    const matchId = {{ match.id }};
+    const chatBox = document.getElementById('chatBox');
+    const msgInput = document.getElementById('msgInput');
+    const lobbyInput = document.getElementById('lobbyCodeInput');
+    let lastMsgCount = 0;
+
+    // --- LOBBY CODE: SPEICHERN (POST) ---
+    async function saveLobbyCode() {
+        const status = document.getElementById('codeSaveStatus');
+        const code = lobbyInput.value;
+        
+        try {
+            const res = await fetch(`/api/match/${matchId}/lobby_code`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ lobby_code: code })
+            });
+            
+            if(res.ok) {
+                status.style.opacity = '1';
+                setTimeout(() => { status.style.opacity = '0'; }, 2000);
+            } else {
+                alert("Konnte Code nicht speichern.");
+            }
+        } catch(e) {
+            console.error(e);
+        }
+    }
+
+    // --- LOBBY CODE: LADEN (GET) ---
+    async function loadLobbyCode() {
+        // Nicht überschreiben, wenn User gerade tippt
+        if (lobbyInput && document.activeElement === lobbyInput) return;
+
+        try {
+            const res = await fetch(`/api/match/${matchId}/lobby_code`);
+            const data = await res.json();
+            
+            if (lobbyInput && data.lobby_code !== lobbyInput.value) {
+                lobbyInput.value = data.lobby_code;
+                // Kleiner Effekt
+                lobbyInput.style.borderColor = '#4caf50';
+                setTimeout(() => { lobbyInput.style.borderColor = '#555'; }, 500);
+            }
+        } catch(e) { }
+    }
+
+    // --- CHAT FUNKTIONEN ---
+    async function sendMessage() {
+        const text = msgInput.value;
+        if(!text.trim()) return;
+
+        try {
+            await fetch(`/api/match/${matchId}/chat`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: text })
+            });
+            msgInput.value = '';
+            loadMessages(); // Sofort neu laden
+        } catch (e) { console.error("Chat Fehler:", e); }
+    }
+
+    function handleEnter(e) {
+        if(e.key === 'Enter') sendMessage();
+    }
+
+    async function loadMessages() {
+        try {
+            const res = await fetch(`/api/match/${matchId}/chat`);
+            const msgs = await res.json();
+
+            if (msgs.length !== lastMsgCount) {
+                chatBox.innerHTML = ''; 
+                
+                msgs.forEach(msg => {
+                    const div = document.createElement('div');
+                    let cssClass = msg.is_me ? 'msg-own' : 'msg-other';
+                    if(msg.is_admin) cssClass += ' msg-admin';
+
+                    div.className = `message-bubble ${cssClass}`;
+                    div.innerHTML = `
+                        <span class="msg-meta">${msg.is_admin ? '🛡️ ' : ''}${msg.user} • ${msg.time}</span>
+                        ${msg.text}
+                    `;
+                    chatBox.appendChild(div);
+                });
+
+                chatBox.scrollTop = chatBox.scrollHeight;
+                lastMsgCount = msgs.length;
+            }
+        } catch (e) { }
+    }
+
+    // Polling alle 2 Sekunden
+    setInterval(() => {
+        loadMessages();
+        loadLobbyCode();
+    }, 2000);
+    
+    // Initial Load
+    loadMessages();
+    loadLobbyCode();
+
+    // Reload für Match Status (Ban/Pick Phasen)
     const currentState = "{{ match.state }}";
     if (currentState.includes('ban') || currentState.includes('pick')) {
-        setTimeout(function() { window.location.reload(); }, 3000); 
+        setTimeout(function() {
+            window.location.reload();
+        }, 3000); 
     }
 </script>
 

@@ -8,6 +8,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps 
+from datetime import datetime
 
 # --- Konfiguration ---
 app = Flask(__name__)
@@ -58,11 +59,17 @@ class Tournament(db.Model):
     matches = db.relationship('Match', backref='tournament', lazy=True, cascade="all, delete-orphan")
 
 class Match(db.Model):
+    # ... (deine bestehenden Felder id, team_a, etc. lassen) ...
     id = db.Column(db.Integer, primary_key=True)
     tournament_id = db.Column(db.Integer, db.ForeignKey('tournament.id'))
     team_a = db.Column(db.String(100), nullable=False, default="TBD")
     team_b = db.Column(db.String(100), nullable=False, default="TBD")
     state = db.Column(db.String(50), default='waiting') 
+    
+    # NEU: LOBBY CODE
+    lobby_code = db.Column(db.String(50), nullable=True)
+
+    # ... (Rest der Match-Felder wie round_number, scores_a, etc. lassen) ...
     round_number = db.Column(db.Integer, default=1)
     match_index = db.Column(db.Integer, default=0)
     next_match_id = db.Column(db.Integer, nullable=True)
@@ -73,6 +80,10 @@ class Match(db.Model):
     draft_a_scores = db.Column(db.Text, nullable=True)
     draft_b_scores = db.Column(db.Text, nullable=True)
 
+    # Beziehung zu Chat Nachrichten
+    chat_messages = db.relationship('ChatMessage', backref='match', lazy=True, cascade="all, delete-orphan")
+
+    # ... (deine bestehenden Methoden _safe_load, properties etc. lassen) ...
     def _safe_load(self, data):
         if not data: return []
         try: return json.loads(data)
@@ -87,6 +98,14 @@ class Match(db.Model):
     def total_score_a(self): return sum(self.get_scores_a())
     @property
     def total_score_b(self): return sum(self.get_scores_b())
+
+class ChatMessage(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    match_id = db.Column(db.Integer, db.ForeignKey('match.id'), nullable=False)
+    username = db.Column(db.String(100), nullable=False)
+    message = db.Column(db.String(500), nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.now)
+    is_admin = db.Column(db.Boolean, default=False)
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -593,7 +612,63 @@ def match_view(match_id):
         return redirect(url_for('match_view', match_id=match.id))
 
     return render_template('match.html', match=match, all_maps=Map.query.all(), banned=match.get_banned(), picked=match.get_picked(), active_team=active_team)
+@app.route('/api/match/<int:match_id>/chat', methods=['GET', 'POST'])
+@login_required
+def match_chat_api(match_id):
+    match = Match.query.get_or_404(match_id)
+    
+    # Nachricht speichern
+    if request.method == 'POST':
+        data = request.json
+        msg_text = data.get('message', '').strip()
+        if msg_text:
+            new_msg = ChatMessage(
+                match_id=match.id,
+                username=current_user.username,
+                message=msg_text,
+                is_admin=current_user.is_admin
+            )
+            db.session.add(new_msg)
+            db.session.commit()
+            return json.dumps({'status': 'ok'}), 200, {'ContentType': 'application/json'}
+    
+    # Nachrichten laden
+    messages = ChatMessage.query.filter_by(match_id=match_id).order_by(ChatMessage.timestamp.asc()).all()
+    msg_list = []
+    for m in messages:
+        msg_list.append({
+            'user': m.username,
+            'text': m.message,
+            'time': m.timestamp.strftime('%H:%M'),
+            'is_admin': m.is_admin,
+            'is_me': m.username == current_user.username
+        })
+    
+    return json.dumps(msg_list), 200, {'ContentType': 'application/json'}
 
+@app.route('/api/match/<int:match_id>/lobby_code', methods=['GET', 'POST'])
+@login_required
+def lobby_code_api(match_id):
+    match = Match.query.get_or_404(match_id)
+    
+    # --- GET: CODE ABRUFEN (Für Live-Update) ---
+    if request.method == 'GET':
+        # Wir geben den Code zurück (oder leeren String, falls None)
+        return json.dumps({'lobby_code': match.lobby_code or ''}), 200, {'ContentType': 'application/json'}
+
+    # --- POST: CODE SPEICHERN ---
+    # Berechtigung prüfen
+    is_authorized = current_user.is_admin or current_user.username in [match.team_a, match.team_b]
+    if not is_authorized:
+        return json.dumps({'status': 'error', 'message': 'Nicht berechtigt'}), 403
+
+    data = request.json
+    new_code = data.get('lobby_code', '').strip()
+    
+    match.lobby_code = new_code
+    db.session.commit()
+    
+    return json.dumps({'status': 'ok', 'new_code': new_code}), 200
 
 if __name__ == '__main__':
     with app.app_context():
