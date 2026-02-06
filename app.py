@@ -951,6 +951,68 @@ def league_lobby_code_api(match_id):
 @app.route('/rules')
 def rules(): return render_template('rules.html')
 
+@app.route('/archive_cup/<int:cup_id>', methods=['POST'])
+@login_required
+def archive_cup(cup_id):
+    if not current_user.is_admin: return redirect(url_for('dashboard'))
+    c = Cup.query.get_or_404(cup_id)
+    c.is_archived = not c.is_archived # Toggle (Archivieren / Wiederherstellen)
+    db.session.commit()
+    return redirect(url_for('dashboard'))
+
+@app.route('/delete_cup/<int:cup_id>', methods=['POST'])
+@login_required
+def delete_cup(cup_id):
+    if not current_user.is_admin: return redirect(url_for('dashboard'))
+    db.session.delete(Cup.query.get_or_404(cup_id))
+    db.session.commit()
+    return redirect(url_for('dashboard'))
+
+# 2. LEAGUE ACTIONS
+@app.route('/archive_league/<int:league_id>', methods=['POST'])
+@login_required
+def archive_league(league_id):
+    if not current_user.is_admin: return redirect(url_for('dashboard'))
+    l = League.query.get_or_404(league_id)
+    l.is_archived = not l.is_archived
+    db.session.commit()
+    return redirect(url_for('dashboard'))
+
+@app.route('/delete_league/<int:league_id>', methods=['POST'])
+@login_required
+def delete_league(league_id):
+    if not current_user.is_admin: return redirect(url_for('dashboard'))
+    db.session.delete(League.query.get_or_404(league_id))
+    db.session.commit()
+    return redirect(url_for('dashboard'))
+
+# 3. DASHBOARD ROUTE UPDATE (Ersetzen)
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    # Wir laden jetzt auch die archivierten Listen separat
+    all_tournaments = Tournament.query.all()
+    
+    return render_template('dashboard.html', 
+        # Turniere
+        active_tournaments=[t for t in all_tournaments if not t.is_archived],
+        archived_tournaments=[t for t in all_tournaments if t.is_archived],
+        
+        # Cups
+        active_cups=Cup.query.filter_by(is_archived=False).all(),
+        archived_cups=Cup.query.filter_by(is_archived=True).all(), # NEU
+        
+        # Ligen
+        active_leagues=League.query.filter_by(is_archived=False).all(),
+        archived_leagues=League.query.filter_by(is_archived=True).all(), # NEU
+        
+        # Rest
+        maps=Map.query.all(), 
+        users=User.query.filter_by(is_admin=False).all(), 
+        clans=Clan.query.all(),
+        clan_map={u.username: u.clan.name for u in User.query.filter(User.clan_id != None).all()}
+    )
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
