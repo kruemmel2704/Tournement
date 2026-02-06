@@ -2,7 +2,7 @@
 
 {% block content %}
 <style>
-    /* ... (Grid Styles wie oben) ... */
+    /* ... (Grid Styles) ... */
     .map-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; margin-bottom: 30px; }
     .map-card { background: #2a2a2a; border: 2px solid #444; border-radius: 8px; overflow: hidden; position: relative; cursor: pointer; transition: transform 0.2s, border-color 0.2s; padding: 0; width: 100%; }
     .map-card:hover:not(:disabled) { transform: scale(1.05); border-color: #fff; }
@@ -10,12 +10,11 @@
     .map-name { padding: 5px; text-align: center; font-weight: bold; color: white; background: rgba(0,0,0,0.8); position: absolute; bottom: 0; width: 100%; font-size: 0.9rem; }
     
     .is-banned { filter: grayscale(100%); border-color: #5a1a1a; cursor: not-allowed; opacity: 0.6; }
-    .banned-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.6); display: flex; justify-content: center; align-items: center; z-index: 10; }
+    .banned-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.6); display: flex; justify-content: center; align-items: center; z-index: 10; display: none; }
     .banned-text { color: #ff4444; border: 3px solid #ff4444; padding: 5px 15px; font-weight: 900; transform: rotate(-15deg); font-size: 1.2rem; }
-    .banned-overlay { display: none; }
     .is-banned .banned-overlay { display: flex; }
 
-    .is-picked { border-color: #2e7d32; box-shadow: 0 0 10px #2e7d32; }
+    .is-picked { border-color: #2e7d32; box-shadow: 0 0 10px #2e7d32; cursor: not-allowed; }
     .picked-badge { position: absolute; top: 5px; right: 5px; background: #2e7d32; color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 0.8rem; display: none; }
     .is-picked .picked-badge { display: block; }
 
@@ -25,28 +24,25 @@
 <div class="container" style="max-width: 1000px;">
     
     <div class="card" style="margin-bottom: 20px; text-align: center; padding: 25px; border-left: 8px solid #fbc02d;" id="statusCard">
-        <h2 style="margin: 0;" id="statusHeadline">
-            Lade Status...
-        </h2>
+        <h2 style="margin: 0;" id="statusHeadline">Lade Status...</h2>
     </div>
 
     <div id="votingSection">
-        <form method="POST">
-            <div class="map-grid">
-                {% for map in all_maps %}
-                    <button type="submit" name="selected_map" value="{{ map.name }}" 
-                            id="btn-map-{{ map.name|replace(' ', '-') }}"
-                            class="map-card">
-                        
-                        <img src="{{ url_for('static', filename='map_images/' + map.image_file) }}" class="map-image">
-                        <div class="map-name">{{ map.name }}</div>
+        <div class="map-grid">
+            {% for map in all_maps %}
+                <button type="button" 
+                        onclick="sendMapPick('{{ map.name }}')" 
+                        id="btn-map-{{ map.name|replace(' ', '-') }}"
+                        class="map-card" value="{{ map.name }}">
+                    
+                    <img src="{{ url_for('static', filename='map_images/' + map.image_file) }}" class="map-image">
+                    <div class="map-name">{{ map.name }}</div>
 
-                        <div class="banned-overlay"><div class="banned-text">BANNED</div></div>
-                        <div class="picked-badge">PICKED</div>
-                    </button>
-                {% endfor %}
-            </div>
-        </form>
+                    <div class="banned-overlay"><div class="banned-text">BANNED</div></div>
+                    <div class="picked-badge">PICKED</div>
+                </button>
+            {% endfor %}
+        </div>
         <div id="waitMessage" style="text-align: center; color: #aaa; margin-top: 10px; display: none;">
             ⏳ Gegner wählt...
         </div>
@@ -58,10 +54,10 @@
             <div id="lobbyCodeDisplay" style="font-size: 2.5rem; letter-spacing: 5px; font-weight: bold; color: #ff9800; margin: 10px 0;">...</div>
             
             {% if current_user.is_admin or current_user.is_mod %}
-                <form method="POST" style="margin-top: 10px;">
-                    <input type="text" name="lobby_code" placeholder="Code eingeben" style="padding: 10px;">
-                    <button class="btn-small">Senden</button>
-                </form>
+                <div style="margin-top: 10px;">
+                    <input type="text" id="lobbyInput" placeholder="Code eingeben" style="padding: 10px;">
+                    <button onclick="sendLobbyCode()" class="btn-small">Senden</button>
+                </div>
             {% endif %}
         </div>
 
@@ -100,6 +96,7 @@
 <script>
     const matchId = {{ match.id }};
     const currentUser = "{{ current_user.username }}";
+    // is_admin/is_mod prüfen (Python Bool zu JS Bool)
     const isAdmin = {{ 'true' if current_user.is_admin or current_user.is_mod else 'false' }};
     
     const statusHeadline = document.getElementById('statusHeadline');
@@ -108,7 +105,36 @@
     const scoringSec = document.getElementById('scoringSection');
     const waitMsg = document.getElementById('waitMessage');
     const lobbyDisplay = document.getElementById('lobbyCodeDisplay');
+    const chatBox = document.getElementById('chatBox');
 
+    // -- MAP PICK FUNKTION (AJAX) --
+    async function sendMapPick(mapName) {
+        const formData = new FormData();
+        formData.append('selected_map', mapName);
+        
+        // Sende an die normale URL, ignoriere den Redirect, updateState regelt die UI
+        try {
+            await fetch(`/match/${matchId}`, { method: 'POST', body: formData });
+            updateState(); // Sofort update triggern
+        } catch(e) { console.error(e); }
+    }
+
+    // -- LOBBY CODE FUNKTION (AJAX) --
+    async function sendLobbyCode() {
+        const code = document.getElementById('lobbyInput').value;
+        if(!code) return;
+        
+        const formData = new FormData();
+        formData.append('lobby_code', code);
+        
+        try {
+            await fetch(`/match/${matchId}`, { method: 'POST', body: formData });
+            document.getElementById('lobbyInput').value = '';
+            updateState();
+        } catch(e) { console.error(e); }
+    }
+
+    // -- STATE UPDATE --
     async function updateState() {
         try {
             const res = await fetch(`/api/match/${matchId}/state`);
@@ -119,32 +145,34 @@
             let color = "#fbc02d";
             const state = data.state;
 
-            votingSec.style.display = 'none';
-            scoringSec.style.display = 'none';
+            // Voting Section nur anzeigen wenn Bann/Pick Phase
+            const isVoting = state.includes('ban') || state.includes('pick');
+            votingSec.style.display = isVoting ? 'block' : 'none';
+            
+            // Scoring nur wenn Phase vorbei
+            const isScoring = (state === 'scoring_phase' || state === 'finished');
+            scoringSec.style.display = isScoring ? 'block' : 'none';
 
             if (state.includes('ban')) {
                 text = `🚫 BANN: ${data.active_team}`;
                 color = "#d32f2f";
-                votingSec.style.display = 'block';
             } else if (state.includes('pick')) {
                 text = `✅ PICK: ${data.active_team}`;
                 color = "#1976d2";
-                votingSec.style.display = 'block';
-            } else if (state === 'scoring_phase' || state === 'finished') {
+            } else if (isScoring) {
                 text = (state === 'finished') ? "🏁 Match Beendet" : "📝 Ergebnisse eintragen";
                 color = (state === 'finished') ? "#4caf50" : "#ff9800";
-                scoringSec.style.display = 'block';
             }
 
             statusHeadline.innerText = text;
             statusCard.style.borderLeftColor = color;
 
-            // MAP GRID UPDATE
-            if (state.includes('ban') || state.includes('pick')) {
+            // MAP GRID UPDATE (Buttons sperren/färben)
+            if (isVoting) {
                 const amIActive = (data.active_team === currentUser) || isAdmin;
                 waitMsg.style.display = amIActive ? 'none' : 'block';
 
-                const buttons = document.querySelectorAll('button[name="selected_map"]');
+                const buttons = document.querySelectorAll('#votingSection button');
                 buttons.forEach(btn => {
                     const mapName = btn.value;
                     const isBanned = data.banned.includes(mapName);
@@ -153,6 +181,8 @@
                     btn.classList.remove('is-banned', 'is-picked');
                     if (isBanned) btn.classList.add('is-banned');
                     if (isPicked) btn.classList.add('is-picked');
+                    
+                    // Button sperren wenn Karte weg ist ODER ich nicht dran bin
                     btn.disabled = isBanned || isPicked || !amIActive;
                 });
             }
@@ -171,7 +201,7 @@
         } catch (e) { }
     }
 
-    // CHAT
+    // -- CHAT --
     async function sendMsg() {
         const txt = document.getElementById('msgInput').value;
         if(!txt) return;
@@ -183,15 +213,23 @@
         try {
             const res = await fetch(`/api/match/${matchId}/chat`);
             const data = await res.json();
-            const chatBox = document.getElementById('chatBox');
-            chatBox.innerHTML = data.map(m => {
+            
+            // Nur updaten wenn nötig (einfacher Check: Länge) oder immer ersetzen und scrollen
+            const oldHtml = chatBox.innerHTML;
+            const newHtml = data.map(m => {
                 let badge = m.is_admin ? '🛡️ ' : (m.is_mod ? '🛡️ ' : '');
                 let color = m.is_admin ? '#e65100' : (m.is_mod ? '#00bcd4' : '#333');
                 return `<div style="margin-bottom: 5px; text-align: ${m.is_me ? 'right':'left'}"><span style="font-size: 0.7em; color: #888;">${badge}${m.user}</span><br><span style="background: ${m.is_me ? '#1976d2' : color}; padding: 5px 10px; border-radius: 4px; display: inline-block; color: white;">${m.text}</span></div>`;
             }).join('');
+
+            if (oldHtml !== newHtml) {
+                chatBox.innerHTML = newHtml;
+                chatBox.scrollTop = chatBox.scrollHeight; // Scroll nach unten
+            }
         } catch(e) {}
     }
 
+    // Init & Interval
     setInterval(() => { updateState(); loadChat(); }, 2000);
     updateState(); loadChat();
 </script>
