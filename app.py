@@ -32,13 +32,12 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# Helper für JSON
 def safe_json_load(data):
     try: return json.loads(data) if data else []
     except: return []
 
 # ==========================================
-# DATENBANK MODELLE
+# MODELLE
 # ==========================================
 
 class Clan(db.Model):
@@ -87,14 +86,12 @@ class Match(db.Model):
     round_number = db.Column(db.Integer, default=1)
     match_index = db.Column(db.Integer, default=0)
     next_match_id = db.Column(db.Integer, nullable=True)
-    
     banned_maps = db.Column(db.Text, default='[]')
     picked_maps = db.Column(db.Text, default='[]')
     scores_a = db.Column(db.Text, default='[]')
     scores_b = db.Column(db.Text, default='[]')
     draft_a_scores = db.Column(db.Text, nullable=True)
     draft_b_scores = db.Column(db.Text, nullable=True)
-    
     chat_messages = db.relationship('ChatMessage', backref='match', lazy=True, cascade="all, delete-orphan")
 
     def get_banned(self): return safe_json_load(self.banned_maps)
@@ -159,23 +156,18 @@ class LeagueMatch(db.Model):
     
     state = db.Column(db.String(50), default='ban_1_a') 
     lobby_code = db.Column(db.String(50), nullable=True)
-    
     banned_maps = db.Column(db.Text, default='[]') 
     picked_maps = db.Column(db.Text, default='[]')
     scores_a = db.Column(db.Text, default='[]')
     scores_b = db.Column(db.Text, default='[]')
     
-    # Lineups (Final)
     lineup_a = db.Column(db.Text, default='[]') 
     lineup_b = db.Column(db.Text, default='[]')
-    
-    # Drafts (Zwischenspeicher)
     draft_a_scores = db.Column(db.Text, nullable=True)
     draft_b_scores = db.Column(db.Text, nullable=True)
     draft_a_lineup = db.Column(db.Text, nullable=True)
     draft_b_lineup = db.Column(db.Text, nullable=True)
     
-    # Bestätigungen
     confirmed_a = db.Column(db.Boolean, default=False)
     confirmed_b = db.Column(db.Boolean, default=False)
 
@@ -235,7 +227,7 @@ def create_initial_admin():
             hashed_pw = generate_password_hash("admin123", method='pbkdf2:sha256')
             db.session.add(User(username="admin", password=hashed_pw, is_admin=True))
             db.session.commit()
-            print("Initialer Admin (admin / admin123) erstellt.")
+            print("Initialer Admin (admin/admin123) erstellt.")
     except Exception as e: print(f"Init Fehler: {e}")
 
 def clan_required(f):
@@ -252,20 +244,13 @@ def clan_required(f):
 def handle_pick_ban_logic(match, selected_map):
     current_banned = match.get_banned()
     current_picked = match.get_picked()
-    
-    if selected_map in current_banned or selected_map in current_picked:
-        return False, "Karte bereits vergeben."
+    if selected_map in current_banned or selected_map in current_picked: return False
     
     s = match.state
-    # Ablauf: 4 Bans (A,B,A,B) -> Picks (A,B,A,B,A...)
-    if s == 'ban_1_a':
-        current_banned.append(selected_map); match.state = 'ban_1_b'
-    elif s == 'ban_1_b':
-        current_banned.append(selected_map); match.state = 'ban_2_a'
-    elif s == 'ban_2_a':
-        current_banned.append(selected_map); match.state = 'ban_2_b'
-    elif s == 'ban_2_b':
-        current_banned.append(selected_map); match.state = 'pick_a'
+    if s == 'ban_1_a': current_banned.append(selected_map); match.state = 'ban_1_b'
+    elif s == 'ban_1_b': current_banned.append(selected_map); match.state = 'ban_2_a'
+    elif s == 'ban_2_a': current_banned.append(selected_map); match.state = 'ban_2_b'
+    elif s == 'ban_2_b': current_banned.append(selected_map); match.state = 'pick_a'
     elif s == 'pick_a':
         current_picked.append(selected_map)
         match.state = 'scoring_phase' if len(current_picked) >= 5 else 'pick_b'
@@ -275,66 +260,50 @@ def handle_pick_ban_logic(match, selected_map):
         
     match.banned_maps = json.dumps(current_banned)
     match.picked_maps = json.dumps(current_picked)
-    return True, "Gespeichert."
+    return True
 
-def advance_winner(match):
-    """Nur für K.O. Turniere"""
+def handle_scoring_logic(match, form_data, user):
+    pm = match.get_picked(); num = len(pm) if pm else 4
+    try:
+        sa = [max(0, int(form_data.get(f'score_a_{i}',0))) for i in range(1, num+1)]
+        sb = [max(0, int(form_data.get(f'score_b_{i}',0))) for i in range(1, num+1)]
+    except: return
+    
+    bundle = {'a':sa, 'b':sb}
+    lineup_list = form_data.getlist('lineup_member')
+    
+    if user.is_admin or user.is_mod:
+        match.scores_a = json.dumps(sa); match.scores_b = json.dumps(sb)
+        match.state = 'finished'; match.draft_a_scores=None; match.draft_b_scores=None
+        if isinstance(match, Match): advance_tournament_winner(match)
+        return
+        
+    if user.username == match.team_a:
+        match.draft_a_scores = json.dumps(bundle)
+        if isinstance(match, LeagueMatch): match.draft_a_lineup = json.dumps(lineup_list)
+    elif user.username == match.team_b:
+        match.draft_b_scores = json.dumps(bundle)
+        if isinstance(match, LeagueMatch): match.draft_b_lineup = json.dumps(lineup_list)
+    
+    if match.draft_a_scores and match.draft_b_scores:
+        if match.draft_a_scores == match.draft_b_scores:
+            match.scores_a = json.dumps(sa); match.scores_b = json.dumps(sb)
+            if isinstance(match, LeagueMatch): match.state = 'confirming'
+            else:
+                match.state = 'finished'
+                if isinstance(match, Match): advance_tournament_winner(match)
+        else: match.state = 'conflict'
+    else: match.state = 'waiting_for_confirmation'
+
+def advance_tournament_winner(match):
     if not match.next_match_id: return
     nm = Match.query.get(match.next_match_id)
     if not nm: return
     win = match.team_a if match.total_score_a > match.total_score_b else match.team_b
     if match.match_index % 2 == 0: nm.team_a = win
     else: nm.team_b = win
-    
-    # Wenn beide Gegner feststehen, Reset auf Ban Phase
-    if nm.team_a != "TBD" and nm.team_b != "TBD":
-        nm.state = 'ban_1_a'
+    if nm.team_a != "TBD" and nm.team_b != "TBD": nm.state = 'ban_1_a'
     db.session.commit()
-
-def handle_scoring_logic(match, form_data, user):
-    pm = match.get_picked()
-    num = len(pm) if pm else 4
-    try:
-        sa = [max(0, int(form_data.get(f'score_a_{i}',0))) for i in range(1, num+1)]
-        sb = [max(0, int(form_data.get(f'score_b_{i}',0))) for i in range(1, num+1)]
-    except: return False, "Fehler."
-    bundle = {'a':sa, 'b':sb}
-    lineup_list = form_data.getlist('lineup_member')
-    
-    # ADMIN / MOD Override
-    if user.is_admin or user.is_mod:
-        match.scores_a = json.dumps(sa); match.scores_b = json.dumps(sb)
-        match.state = 'finished'; match.draft_a_scores=None; match.draft_b_scores=None
-        if isinstance(match, Match): advance_winner(match)
-        return True, "Admin/Mod Finish."
-        
-    isa = (user.username == match.team_a); isb = (user.username == match.team_b)
-    if not (isa or isb): return False, "Nicht erlaubt."
-    
-    # Draft speichern
-    if isa: 
-        match.draft_a_scores = json.dumps(bundle)
-        if isinstance(match, LeagueMatch): match.draft_a_lineup = json.dumps(lineup_list)
-    elif isb: 
-        match.draft_b_scores = json.dumps(bundle)
-        if isinstance(match, LeagueMatch): match.draft_b_lineup = json.dumps(lineup_list)
-    
-    # Vergleich
-    if match.draft_a_scores and match.draft_b_scores:
-        if match.draft_a_scores == match.draft_b_scores:
-            match.scores_a = json.dumps(sa); match.scores_b = json.dumps(sb)
-            
-            if isinstance(match, LeagueMatch):
-                match.state = 'confirming' # Double Opt-In
-                return True, "Ergebnisse stimmen. Bitte Line-up prüfen."
-            else:
-                match.state = 'finished'
-                if isinstance(match, Match): advance_winner(match)
-                return True, "Match Fertig!"
-        else:
-            match.state = 'conflict'; return False, "Konflikt! Ergebnisse unterschiedlich."
-    else:
-        match.state = 'waiting_for_confirmation'; return True, "Gespeichert. Warte auf Gegner."
 
 # ==========================================
 # ROUTEN
@@ -349,33 +318,27 @@ def index():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-        user = User.query.filter_by(username=username).first()
+        user = User.query.filter_by(username=request.form.get('username')).first()
         if user:
-            if (user.is_admin or user.is_mod) and check_password_hash(user.password, password):
+            if (user.is_admin or user.is_mod) and check_password_hash(user.password, request.form.get('password')):
                 login_user(user); return redirect(url_for('dashboard'))
-            elif user.token == password:
+            elif user.token == request.form.get('password'):
                 login_user(user); return redirect(url_for('dashboard'))
-        clan = Clan.query.filter_by(name=username).first()
-        if clan and check_password_hash(clan.password, password):
+        clan = Clan.query.filter_by(name=request.form.get('username')).first()
+        if clan and check_password_hash(clan.password, request.form.get('password')):
             session['clan_id'] = clan.id; return redirect(url_for('clan_dashboard'))
         flash('Login fehlgeschlagen.', 'error')
     return render_template('login.html')
 
 @app.route('/logout')
 def logout():
-    logout_user()
-    session.pop('clan_id', None)
-    return redirect(url_for('login'))
+    logout_user(); session.pop('clan_id', None); return redirect(url_for('login'))
 
 @app.route('/register_clan', methods=['GET', 'POST'])
 def register_clan():
-    if current_user.is_authenticated or 'clan_id' in session: return redirect(url_for('dashboard'))
     if request.method == 'POST':
-        name = request.form.get('clan_name'); pw = request.form.get('password')
-        if not Clan.query.filter_by(name=name).first():
-            db.session.add(Clan(name=name, password=generate_password_hash(pw, method='pbkdf2:sha256')))
+        if not Clan.query.filter_by(name=request.form.get('clan_name')).first():
+            db.session.add(Clan(name=request.form.get('clan_name'), password=generate_password_hash(request.form.get('password'), method='pbkdf2:sha256')))
             db.session.commit(); flash('Registriert!', 'success'); return redirect(url_for('login'))
     return render_template('register_clan.html')
 
@@ -384,36 +347,12 @@ def register_clan():
 def dashboard():
     all_t = Tournament.query.all()
     return render_template('dashboard.html', 
-        active_tournaments=[t for t in all_t if not t.is_archived],
-        archived_tournaments=[t for t in all_t if t.is_archived],
-        active_cups=Cup.query.filter_by(is_archived=False).all(),
-        archived_cups=Cup.query.filter_by(is_archived=True).all(),
-        active_leagues=League.query.filter_by(is_archived=False).all(),
-        archived_leagues=League.query.filter_by(is_archived=True).all(),
+        active_tournaments=[t for t in all_t if not t.is_archived], archived_tournaments=[t for t in all_t if t.is_archived],
+        active_cups=Cup.query.filter_by(is_archived=False).all(), archived_cups=Cup.query.filter_by(is_archived=True).all(),
+        active_leagues=League.query.filter_by(is_archived=False).all(), archived_leagues=League.query.filter_by(is_archived=True).all(),
         maps=Map.query.all(), users=User.query.filter_by(is_admin=False).all(), clans=Clan.query.all(),
         clan_map={u.username: u.clan.name for u in User.query.filter(User.clan_id != None).all()}
     )
-
-# --- MEMBER ---
-@app.route('/add_member', methods=['POST'])
-@login_required
-def add_member():
-    nm = Member(user_id=current_user.id, gamertag=request.form.get('gamertag'), activision_id=request.form.get('activision_id'), platform=request.form.get('platform'))
-    db.session.add(nm); db.session.commit(); return redirect(url_for('dashboard'))
-
-@app.route('/delete_member/<int:member_id>', methods=['POST'])
-@login_required
-def delete_member(member_id):
-    m = Member.query.get_or_404(member_id)
-    if m.user_id == current_user.id or current_user.is_admin: db.session.delete(m); db.session.commit()
-    return redirect(url_for('dashboard'))
-
-# --- ADMIN ACTIONS ---
-@app.route('/maps')
-@login_required
-def maps_manager():
-    if not current_user.is_admin: return redirect(url_for('dashboard'))
-    return render_template('maps.html', active_maps=[m for m in Map.query.all() if not m.is_archived], archived_maps=[m for m in Map.query.all() if m.is_archived])
 
 @app.route('/users')
 @login_required
@@ -434,18 +373,9 @@ def admin_change_password():
 @login_required
 def admin_reset_clan_password(clan_id):
     if not current_user.is_admin: return redirect(url_for('dashboard'))
-    c = Clan.query.get_or_404(clan_id)
-    if request.form.get('new_password'):
-        c.password = generate_password_hash(request.form.get('new_password'), method='pbkdf2:sha256')
-        db.session.commit(); flash('Clan PW geändert.', 'success')
+    Clan.query.get_or_404(clan_id).password = generate_password_hash(request.form.get('new_password'), method='pbkdf2:sha256')
+    db.session.commit(); flash('Clan PW geändert.', 'success')
     return redirect(url_for('users_manager'))
-
-@app.route('/create_admin', methods=['POST'])
-@login_required
-def create_admin():
-    if not current_user.is_admin: return redirect(url_for('dashboard'))
-    db.session.add(User(username=request.form.get('username'), password=generate_password_hash(request.form.get('password'), method='pbkdf2:sha256'), is_admin=True))
-    db.session.commit(); return redirect(url_for('users_manager'))
 
 @app.route('/create_mod', methods=['POST'])
 @login_required
@@ -454,12 +384,18 @@ def create_mod():
     db.session.add(User(username=request.form.get('username'), password=generate_password_hash(request.form.get('password'), method='pbkdf2:sha256'), is_mod=True))
     db.session.commit(); return redirect(url_for('users_manager'))
 
+@app.route('/create_admin', methods=['POST'])
+@login_required
+def create_admin():
+    if not current_user.is_admin: return redirect(url_for('dashboard'))
+    db.session.add(User(username=request.form.get('username'), password=generate_password_hash(request.form.get('password'), method='pbkdf2:sha256'), is_admin=True))
+    db.session.commit(); return redirect(url_for('users_manager'))
+
 @app.route('/create_clan', methods=['POST'])
 @login_required
 def create_clan():
     if not current_user.is_admin: return redirect(url_for('dashboard'))
-    db.session.add(Clan(name=request.form.get('clan_name'), password=generate_password_hash("1234", method='pbkdf2:sha256'))); db.session.commit()
-    return redirect(url_for('users_manager'))
+    db.session.add(Clan(name=request.form.get('clan_name'), password=generate_password_hash("1234", method='pbkdf2:sha256'))); db.session.commit(); return redirect(url_for('users_manager'))
 
 @app.route('/create_user', methods=['POST'])
 @login_required
@@ -467,8 +403,7 @@ def create_user():
     if not current_user.is_admin: return redirect(url_for('dashboard'))
     name = request.form.get('username'); cid = request.form.get('clan_id')
     if cid: name = f"{Clan.query.get(cid).name}.{name}"
-    db.session.add(User(username=name, token=secrets.token_hex(4), clan_id=cid)); db.session.commit()
-    return redirect(url_for('users_manager'))
+    db.session.add(User(username=name, token=secrets.token_hex(4), clan_id=cid)); db.session.commit(); return redirect(url_for('users_manager'))
 
 @app.route('/delete_user/<int:user_id>', methods=['POST'])
 @login_required
@@ -481,6 +416,58 @@ def delete_user(user_id):
 def delete_clan(clan_id):
     if not current_user.is_admin: return redirect(url_for('dashboard'))
     db.session.delete(Clan.query.get_or_404(clan_id)); db.session.commit(); return redirect(url_for('users_manager'))
+
+# --- MEMBER / CLAN ---
+@app.route('/add_member', methods=['POST'])
+@login_required
+def add_member():
+    db.session.add(Member(user_id=current_user.id, gamertag=request.form.get('gamertag'), activision_id=request.form.get('activision_id'), platform=request.form.get('platform')))
+    db.session.commit(); return redirect(url_for('dashboard'))
+
+@app.route('/delete_member/<int:member_id>', methods=['POST'])
+@login_required
+def delete_member(member_id):
+    m = Member.query.get_or_404(member_id)
+    if m.user_id == current_user.id or current_user.is_admin: db.session.delete(m); db.session.commit()
+    return redirect(url_for('dashboard'))
+
+@app.route('/clan_dashboard')
+@clan_required
+def clan_dashboard():
+    return render_template('clan_dashboard.html', clan=Clan.query.get(session['clan_id']), free_agents=User.query.filter(User.clan_id == None, User.is_admin == False, User.is_mod == False).all())
+
+@app.route('/clan_add_member/<int:user_id>', methods=['POST'])
+@clan_required
+def clan_add_member(user_id):
+    User.query.get_or_404(user_id).clan_id = session['clan_id']; db.session.commit(); return redirect(url_for('clan_dashboard'))
+
+@app.route('/clan_remove_member/<int:user_id>', methods=['POST'])
+@clan_required
+def clan_remove_member(user_id):
+    User.query.get_or_404(user_id).clan_id = None; db.session.commit(); return redirect(url_for('clan_dashboard'))
+
+@app.route('/clan_create_team', methods=['POST'])
+@clan_required
+def clan_create_team():
+    c = Clan.query.get(session['clan_id']); name = f"{c.name}.{request.form.get('team_name')}"
+    if not User.query.filter_by(username=name).first():
+        db.session.add(User(username=name, token=secrets.token_hex(4), clan_id=c.id)); db.session.commit()
+    return redirect(url_for('clan_dashboard'))
+
+@app.route('/clan_change_password', methods=['POST'])
+@clan_required
+def clan_change_password():
+    c = Clan.query.get(session['clan_id'])
+    if check_password_hash(c.password, request.form.get('current_password')) and request.form.get('new_password') == request.form.get('confirm_password'):
+        c.password = generate_password_hash(request.form.get('new_password'), method='pbkdf2:sha256'); db.session.commit()
+    return redirect(url_for('clan_dashboard'))
+
+# --- MAPS ---
+@app.route('/maps')
+@login_required
+def maps_manager():
+    if not current_user.is_admin: return redirect(url_for('dashboard'))
+    return render_template('maps.html', active_maps=[m for m in Map.query.all() if not m.is_archived], archived_maps=[m for m in Map.query.all() if m.is_archived])
 
 @app.route('/add_map', methods=['POST'])
 @login_required
@@ -504,38 +491,9 @@ def archive_map(map_id):
     if not current_user.is_admin: return redirect(url_for('dashboard'))
     m = Map.query.get_or_404(map_id); m.is_archived = not m.is_archived; db.session.commit(); return redirect(url_for('maps_manager'))
 
-# --- CLAN ---
-@app.route('/clan_dashboard')
-@clan_required
-def clan_dashboard():
-    return render_template('clan_dashboard.html', clan=Clan.query.get(session['clan_id']), free_agents=User.query.filter(User.clan_id == None, User.is_admin == False, User.is_mod == False).all())
-
-@app.route('/clan_add_member/<int:user_id>', methods=['POST'])
-@clan_required
-def clan_add_member(user_id):
-    u = User.query.get_or_404(user_id); u.clan_id = session['clan_id']; db.session.commit(); return redirect(url_for('clan_dashboard'))
-
-@app.route('/clan_remove_member/<int:user_id>', methods=['POST'])
-@clan_required
-def clan_remove_member(user_id):
-    u = User.query.get_or_404(user_id); u.clan_id = None; db.session.commit(); return redirect(url_for('clan_dashboard'))
-
-@app.route('/clan_create_team', methods=['POST'])
-@clan_required
-def clan_create_team():
-    c = Clan.query.get(session['clan_id']); name = f"{c.name}.{request.form.get('team_name')}"
-    if User.query.filter_by(username=name).first(): flash('Name vergeben','error')
-    else: db.session.add(User(username=name, token=secrets.token_hex(4), clan_id=c.id)); db.session.commit()
-    return redirect(url_for('clan_dashboard'))
-
-@app.route('/clan_change_password', methods=['POST'])
-@clan_required
-def clan_change_password():
-    c = Clan.query.get(session['clan_id'])
-    if check_password_hash(c.password, request.form.get('current_password')) and request.form.get('new_password') == request.form.get('confirm_password'):
-        c.password = generate_password_hash(request.form.get('new_password'), method='pbkdf2:sha256'); db.session.commit(); flash('PW geändert.', 'success')
-    else: flash('Fehler.', 'error')
-    return redirect(url_for('clan_dashboard'))
+# ==========================================
+# WETTBEWERBE (VIEWS & ACTION ROUTEN)
+# ==========================================
 
 # --- TURNIER ---
 @app.route('/create_tournament', methods=['GET', 'POST'])
@@ -551,8 +509,7 @@ def create_tournament():
         for r in range(2, int(math.ceil(math.log2(len(sel))))+1):
             curr = []
             for i in range(len(prev)//2 + len(prev)%2):
-                m = Match(tournament_id=t.id, team_a="TBD", team_b="TBD", state='waiting', round_number=r, match_index=i)
-                db.session.add(m); curr.append(m)
+                db.session.add(Match(tournament_id=t.id, team_a="TBD", team_b="TBD", state='waiting', round_number=r, match_index=i)); curr.append(Match.query.all()[-1])
             db.session.commit()
             for idx, pm in enumerate(prev): pm.next_match_id = curr[idx//2].id
             db.session.commit(); prev = curr
@@ -565,11 +522,12 @@ def match_view(match_id):
     match = Match.query.get_or_404(match_id)
     active = match.team_a if match.state.endswith('_a') else (match.team_b if match.state.endswith('_b') else None)
     if request.method == 'POST':
-        if 'selected_map' in request.form:
-            if current_user.is_admin or current_user.username == active:
-                s, m = handle_pick_ban_logic(match, request.form.get('selected_map')); db.session.commit()
+        if 'selected_map' in request.form and (current_user.is_admin or current_user.username == active):
+            handle_pick_ban_logic(match, request.form.get('selected_map')); db.session.commit()
         elif 'submit_scores' in request.form:
             handle_scoring_logic(match, request.form, current_user); db.session.commit()
+        elif 'lobby_code' in request.form and (current_user.is_admin or current_user.is_mod):
+            match.lobby_code = request.form.get('lobby_code'); db.session.commit()
         return redirect(url_for('match_view', match_id=match.id))
     return render_template('match.html', match=match, all_maps=Map.query.all(), banned=match.get_banned(), picked=match.get_picked(), active_team=active)
 
@@ -592,7 +550,7 @@ def create_cup():
     if not current_user.is_admin: return redirect(url_for('dashboard'))
     if request.method == 'POST':
         c = Cup(name=request.form.get('cup_name'), participants=json.dumps(request.form.getlist('selected_users'))); db.session.add(c); db.session.commit()
-        teams = request.form.getlist('selected_users')
+        teams = request.form.getlist('selected_users'); 
         if len(teams)%2!=0: teams.append(None)
         for r in range(len(teams)-1):
             for i in range(len(teams)//2):
@@ -623,16 +581,18 @@ def cup_match_view(match_id):
             if current_user.username==match.team_b: match.ready_b=True
             if match.ready_a and match.ready_b: match.state='picking'
             db.session.commit()
-        elif 'pick_map' in request.form and match.state=='picking':
+        elif 'pick_map' in request.form and match.state=='picking' and current_user.username==match.current_picker:
             pm=match.get_picked(); pm.append(request.form.get('pick_map')); match.picked_maps=json.dumps(pm)
             match.current_picker = match.team_b if match.current_picker==match.team_a else match.team_a
             if len(pm)>=6: match.state='waiting_for_code'
             db.session.commit()
-        elif 'submit_scores' in request.form:
+        elif 'submit_scores' in request.form and (current_user.is_admin or current_user.is_mod):
             sa=[int(request.form.get(f'score_a_{i}',0)) for i in range(6)]
             sb=[int(request.form.get(f'score_b_{i}',0)) for i in range(6)]
             match.scores_a=json.dumps(sa); match.scores_b=json.dumps(sb); match.state='finished'
             db.session.commit()
+        elif 'lobby_code' in request.form and (current_user.is_admin or current_user.is_mod):
+            match.lobby_code = request.form.get('lobby_code'); db.session.commit()
         return redirect(url_for('cup_match_view', match_id=match.id))
     return render_template('cup_match.html', match=match, all_maps=Map.query.all(), picked=match.get_picked())
 
@@ -653,7 +613,7 @@ def create_league():
     if not current_user.is_admin: return redirect(url_for('dashboard'))
     if request.method == 'POST':
         l = League(name=request.form.get('league_name'), participants=json.dumps(request.form.getlist('selected_users'))); db.session.add(l); db.session.commit()
-        teams = request.form.getlist('selected_users')
+        teams = request.form.getlist('selected_users'); 
         if len(teams)%2!=0: teams.append(None)
         for r in range(len(teams)-1):
             for i in range(len(teams)//2):
@@ -687,9 +647,8 @@ def league_match_view(match_id):
     match = LeagueMatch.query.get_or_404(match_id)
     active = match.team_a if match.state.endswith('_a') else (match.team_b if match.state.endswith('_b') else None)
     if request.method == 'POST':
-        if 'selected_map' in request.form:
-            if current_user.is_admin or current_user.username==active:
-                handle_pick_ban_logic(match, request.form.get('selected_map')); db.session.commit()
+        if 'selected_map' in request.form and (current_user.is_admin or current_user.username == active):
+            handle_pick_ban_logic(match, request.form.get('selected_map')); db.session.commit()
         elif 'submit_scores' in request.form:
             handle_scoring_logic(match, request.form, current_user); db.session.commit()
         elif 'confirm_lineup' in request.form:
@@ -699,7 +658,7 @@ def league_match_view(match_id):
                 match.state = 'finished'
                 match.lineup_a = match.draft_a_lineup; match.lineup_b = match.draft_b_lineup
             db.session.commit()
-        elif 'lobby_code' in request.form:
+        elif 'lobby_code' in request.form and (current_user.is_admin or current_user.is_mod):
             match.lobby_code = request.form.get('lobby_code'); db.session.commit()
         return redirect(url_for('league_match_view', match_id=match.id))
     return render_template('league_match.html', match=match, all_maps=Map.query.all(), banned=match.get_banned(), picked=match.get_picked(), active_team=active)
@@ -714,37 +673,63 @@ def archive_league(league_id):
 def delete_league(league_id):
     db.session.delete(League.query.get_or_404(league_id)); db.session.commit(); return redirect(url_for('dashboard'))
 
-# --- APIS (LIVE UPDATE) ---
-def handle_chat(model, match_id):
-    if request.method == 'POST' and request.json.get('message'):
-        msg = model(username=current_user.username, message=request.json['message'], is_admin=current_user.is_admin, is_mod=current_user.is_mod)
-        if isinstance(msg, ChatMessage): msg.match_id = match_id
-        elif isinstance(msg, CupChatMessage): msg.cup_match_id = match_id
-        elif isinstance(msg, LeagueChatMessage): msg.league_match_id = match_id
-        db.session.add(msg); db.session.commit()
-        return jsonify({'status': 'ok'})
-    msgs = model.query.filter_by(**{f"{model.__tablename__.replace('_chat_message','')}_id": match_id}).order_by(model.timestamp).all()
+# ==========================================
+# APIs (LIVE UPDATES)
+# ==========================================
+
+def handle_chat_api_logic(model, match_id):
+    if request.method == 'POST':
+        data = request.json
+        if data.get('message'):
+            msg = model(username=current_user.username, message=data['message'], is_admin=current_user.is_admin, is_mod=current_user.is_mod)
+            if model == ChatMessage: msg.match_id = match_id
+            elif model == CupChatMessage: msg.cup_match_id = match_id
+            elif model == LeagueChatMessage: msg.league_match_id = match_id
+            db.session.add(msg); db.session.commit()
+            return jsonify({'status': 'ok'})
+    
+    # Filter key basierend auf Model
+    filter_kwargs = {}
+    if model == ChatMessage: filter_kwargs['match_id'] = match_id
+    elif model == CupChatMessage: filter_kwargs['cup_match_id'] = match_id
+    elif model == LeagueChatMessage: filter_kwargs['league_match_id'] = match_id
+    
+    msgs = model.query.filter_by(**filter_kwargs).order_by(model.timestamp).all()
     return jsonify([{'user':m.username, 'text':m.message, 'time':m.timestamp.strftime('%H:%M'), 'is_admin':m.is_admin, 'is_mod':m.is_mod, 'is_me':m.username==current_user.username} for m in msgs])
+
+def handle_lobby_api_logic(model, match_id):
+    # Unterstützt auch POST via API falls gewünscht, aber View macht das schon via Formular.
+    # Hier hauptsächlich GET für Live Update.
+    if request.method == 'POST':
+        m = model.query.get_or_404(match_id)
+        if current_user.is_admin or current_user.is_mod or current_user.username in [m.team_a, m.team_b]:
+            m.lobby_code = request.json.get('lobby_code', '').strip()
+            db.session.commit()
+            return jsonify({'status': 'ok'})
+        return jsonify({'status': 'error'}), 403
+        
+    m = model.query.get_or_404(match_id)
+    return jsonify({'lobby_code': m.lobby_code or ''})
 
 @app.route('/api/match/<int:match_id>/chat', methods=['GET', 'POST'])
 @login_required
-def match_chat_api(match_id): return handle_chat(ChatMessage, match_id)
+def match_chat_api(match_id): return handle_chat_api_logic(ChatMessage, match_id)
 
 @app.route('/api/cup_match/<int:match_id>/chat', methods=['GET', 'POST'])
 @login_required
-def cup_chat_api(match_id): return handle_chat(CupChatMessage, match_id)
+def cup_chat_api(match_id): return handle_chat_api_logic(CupChatMessage, match_id)
 
 @app.route('/api/league_match/<int:match_id>/chat', methods=['GET', 'POST'])
 @login_required
-def league_chat_api(match_id): return handle_chat(LeagueChatMessage, match_id)
+def league_chat_api(match_id): return handle_chat_api_logic(LeagueChatMessage, match_id)
 
-@app.route('/api/match/<int:match_id>/lobby_code')
+@app.route('/api/match/<int:match_id>/lobby_code', methods=['GET', 'POST'])
 @login_required
-def match_lobby_api(match_id): return jsonify({'lobby_code': Match.query.get_or_404(match_id).lobby_code or ''})
+def match_lobby_api(match_id): return handle_lobby_api_logic(Match, match_id)
 
-@app.route('/api/league_match/<int:match_id>/lobby_code')
+@app.route('/api/league_match/<int:match_id>/lobby_code', methods=['GET', 'POST'])
 @login_required
-def league_lobby_api(match_id): return jsonify({'lobby_code': LeagueMatch.query.get_or_404(match_id).lobby_code or ''})
+def league_lobby_api(match_id): return handle_lobby_api_logic(LeagueMatch, match_id)
 
 @app.route('/api/cup_match/<int:match_id>/state')
 @login_required
