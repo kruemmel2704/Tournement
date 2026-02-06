@@ -137,8 +137,14 @@
             statusDisplay.innerText = "STATUS: " + data.state.toUpperCase().replace('_', ' ');
             readySec.style.display = (data.state === 'waiting_for_ready') ? 'block' : 'none';
             pickingSec.style.display = (data.state === 'picking') ? 'block' : 'none';
+            
             const isLateGame = ['waiting_for_code', 'in_progress', 'finished'].includes(data.state);
             lobbySec.style.display = isLateGame ? 'block' : 'none';
+            
+            // WICHTIG: Admin Section Sichtbarkeit aktualisieren
+            if (adminSec) {
+                adminSec.style.display = ['in_progress', 'finished'].includes(data.state) ? 'block' : 'none';
+            }
             
             if (data.state === 'waiting_for_ready') {
                 document.getElementById('readyIndicatorA').innerHTML = data.ready_a ? '<span style="color:#4caf50; font-size: 2em;">✔ BEREIT</span>' : '<span style="color:#f44336;">Wartet...</span>';
