@@ -2,92 +2,136 @@
 
 {% block content %}
 <style>
-    /* ... (Grid Styles) ... */
-    .map-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; margin-bottom: 30px; }
-    .map-card { background: #2a2a2a; border: 2px solid #444; border-radius: 8px; overflow: hidden; position: relative; cursor: pointer; transition: transform 0.2s, border-color 0.2s; padding: 0; width: 100%; }
-    .map-card:hover:not(:disabled) { transform: scale(1.05); border-color: #fff; }
-    .map-image { width: 100%; height: 100px; object-fit: cover; display: block; }
-    .map-name { padding: 5px; text-align: center; font-weight: bold; color: white; background: rgba(0,0,0,0.8); position: absolute; bottom: 0; width: 100%; font-size: 0.9rem; }
+    /* Karten Styles */
+    .map-container { display: flex; gap: 15px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 20px; }
+    .map-box { min-width: 140px; background: #2a2a2a; border: 2px solid #444; border-radius: 8px; overflow: hidden; text-align: center; }
+    .map-img { width: 100%; height: 80px; object-fit: cover; }
+    .map-title { padding: 5px; font-weight: bold; font-size: 0.9rem; color: #fff; }
     
-    .is-banned { filter: grayscale(100%); border-color: #5a1a1a; cursor: not-allowed; opacity: 0.6; }
-    .banned-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.6); display: flex; justify-content: center; align-items: center; z-index: 10; display: none; }
-    .banned-text { color: #ff4444; border: 3px solid #ff4444; padding: 5px 15px; font-weight: 900; transform: rotate(-15deg); font-size: 1.2rem; }
-    .is-banned .banned-overlay { display: flex; }
-
-    .is-picked { border-color: #2e7d32; box-shadow: 0 0 10px #2e7d32; cursor: not-allowed; }
-    .picked-badge { position: absolute; top: 5px; right: 5px; background: #2e7d32; color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 0.8rem; display: none; }
-    .is-picked .picked-badge { display: block; }
-
+    /* Chat */
     .chat-container { background: #1a1a1a; border: 1px solid #333; border-radius: 8px; margin-top: 30px; display: flex; flex-direction: column; height: 400px; }
+    .chat-messages { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
+    .message-bubble { max-width: 80%; padding: 8px 12px; border-radius: 8px; font-size: 0.9rem; position: relative; word-wrap: break-word; }
+    .msg-own { align-self: flex-end; background: #1976d2; color: white; border-bottom-right-radius: 2px; }
+    .msg-other { align-self: flex-start; background: #333; color: #ddd; border-bottom-left-radius: 2px; }
+    .msg-admin { border: 1px solid #ff9800; background: #3a2000; } 
+    .msg-mod { border: 1px solid #00bcd4; background: #00333d; }
+    .msg-meta { font-size: 0.7em; opacity: 0.7; margin-bottom: 2px; display: block; }
 </style>
 
-<div class="container" style="max-width: 1000px;">
+<div class="container" style="max-width: 1000px; margin: 0 auto;">
     
     <div class="card" style="margin-bottom: 20px; text-align: center; padding: 25px; border-left: 8px solid #fbc02d;" id="statusCard">
-        <h2 style="margin: 0;" id="statusHeadline">Lade Status...</h2>
+        <h2 style="margin: 0;">{{ match.team_a }} <span style="color:#aaa">VS</span> {{ match.team_b }}</h2>
+        <div style="margin-top: 10px; font-weight: bold; color: #9c27b0;" id="statusDisplay">
+            STATUS: {{ match.state|upper|replace('_', ' ') }}
+        </div>
     </div>
 
-    <div id="votingSection">
-        <div class="map-grid">
-            {% for map in all_maps %}
-                <button type="button" 
-                        onclick="sendMapPick('{{ map.name }}')" 
-                        id="btn-map-{{ map.name|replace(' ', '-') }}"
-                        class="map-card" value="{{ map.name }}">
-                    
-                    <img src="{{ url_for('static', filename='map_images/' + map.image_file) }}" class="map-image">
-                    <div class="map-name">{{ map.name }}</div>
+    {% if (current_user.is_admin or current_user.is_mod) and match.state == 'waiting_for_ready' %}
+    <div class="card" style="border-left: 5px solid #2196f3; margin-bottom: 20px;">
+        <h3 style="color: #2196f3; margin-top: 0;">🗺️ Admin: 3 Karten festlegen</h3>
+        <form method="POST">
+            <input type="hidden" name="set_maps" value="true">
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px;">
+                {% for i in range(1, 4) %}
+                <div>
+                    <label style="display:block; margin-bottom:5px;">Karte {{ i }}</label>
+                    <select name="map_{{ i }}" style="width: 100%; padding: 8px; background: #333; color: white; border: 1px solid #555; border-radius: 4px;">
+                        {% for map in all_maps %}
+                            <option value="{{ map.name }}">{{ map.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endfor %}
+            </div>
+            <button class="btn" style="width: 100%; background: #2196f3; margin-top: 15px;">Karten speichern & weiter</button>
+        </form>
+    </div>
+    {% endif %}
 
-                    <div class="banned-overlay"><div class="banned-text">BANNED</div></div>
-                    <div class="picked-badge">PICKED</div>
-                </button>
+    {% if picked %}
+    <div class="card" style="margin-bottom: 20px;">
+        <h4>🏟️ Zu spielende Karten:</h4>
+        <div class="map-container">
+            {% for m_name in picked %}
+                {% set map_obj = all_maps | selectattr('name', 'equalto', m_name) | first %}
+                <div class="map-box">
+                    {% if map_obj %}
+                        <img src="{{ url_for('static', filename='map_images/' + map_obj.image_file) }}" class="map-img">
+                    {% endif %}
+                    <div class="map-title">{{ loop.index }}. {{ m_name }}</div>
+                </div>
             {% endfor %}
         </div>
-        <div id="waitMessage" style="text-align: center; color: #aaa; margin-top: 10px; display: none;">
-            ⏳ Gegner wählt...
-        </div>
     </div>
+    {% endif %}
 
-    <div id="scoringSection" class="card" style="display: none;">
-        <div id="lobbySection" style="text-align: center; border: 2px solid #ff9800; margin-bottom: 20px; padding: 15px;">
-            <h3>🔑 LOBBY CODE</h3>
-            <div id="lobbyCodeDisplay" style="font-size: 2.5rem; letter-spacing: 5px; font-weight: bold; color: #ff9800; margin: 10px 0;">...</div>
-            
-            {% if current_user.is_admin or current_user.is_mod %}
-                <div style="margin-top: 10px;">
-                    <input type="text" id="lobbyInput" placeholder="Code eingeben" style="padding: 10px;">
-                    <button onclick="sendLobbyCode()" class="btn-small">Senden</button>
-                </div>
-            {% endif %}
+    {% if match.state in ['waiting_for_code', 'in_progress', 'finished'] %}
+    <div class="card" style="text-align: center; border: 2px solid #ff9800; margin-bottom: 20px;">
+        <h3>🔑 LOBBY CODE</h3>
+        <div id="lobbyCodeDisplay" style="font-size: 2.5rem; letter-spacing: 5px; font-weight: bold; color: #ff9800; margin: 15px 0;">
+            {% if match.lobby_code %}{{ match.lobby_code }}{% else %}...{% endif %}
         </div>
+        
+        {% if current_user.is_admin or current_user.is_mod %}
+            <form method="POST" style="margin-top: 10px; display: flex; justify-content: center; gap: 10px;">
+                <input type="text" name="lobby_code" placeholder="Code eingeben" value="{{ match.lobby_code or '' }}" style="padding: 10px; background: #222; border: 1px solid #555; color: white; width: 200px;">
+                <button name="set_lobby_code" class="btn-small">Senden & Start</button>
+            </form>
+        {% else %}
+            {% if not match.lobby_code %}<div style="color: #aaa;">Warte auf Admin...</div>{% endif %}
+        {% endif %}
+    </div>
+    {% endif %}
 
-        <h3>Ergebnisse eintragen</h3>
+    {% if (current_user.is_admin or current_user.is_mod) and match.state in ['in_progress', 'finished'] %}
+    <div class="card" style="border-left: 5px solid #f44336; margin-bottom: 20px;">
+        <h3 style="color: #f44336; margin-top: 0;">👮 Ergebnisse eintragen</h3>
         <form method="POST">
             <input type="hidden" name="submit_scores" value="true">
-            <table style="width:100%; border-collapse: collapse; margin-bottom: 20px;">
-                <thead><tr style="border-bottom: 1px solid #555;"><th>Map</th><th>{{ match.team_a }}</th><th>{{ match.team_b }}</th></tr></thead>
-                <tbody id="scoreTableBody">
-                    {% for i in range(1, 6) %}
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                <thead>
+                    <tr style="border-bottom: 1px solid #555;">
+                        <th style="text-align: left; padding: 10px;">Map</th>
+                        <th style="text-align: center;">{{ match.team_a }}</th>
+                        <th style="text-align: center;">{{ match.team_b }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% set saved_a = match.get_scores_a() %}
+                    {% set saved_b = match.get_scores_b() %}
+                    {% for i in range(1, 4) %}
                     <tr style="border-bottom: 1px solid #333;">
-                        <td style="padding:10px;">
-                            <small>Runde {{ i }}</small><br>
-                            <strong class="map-slot-{{ i-1 }}"></strong>
+                        <td style="padding: 10px;">
+                            <span style="color:#888;">Map {{ i }}</span><br>
+                            {% if picked and picked|length >= i %}<strong>{{ picked[i-1] }}</strong>{% endif %}
                         </td>
-                        <td style="text-align:center;"><input type="number" name="score_a_{{ i }}" min="0" style="width:50px; text-align:center;" value="0"></td>
-                        <td style="text-align:center;"><input type="number" name="score_b_{{ i }}" min="0" style="width:50px; text-align:center;" value="0"></td>
+                        <td style="text-align: center;">
+                            <input type="number" name="score_a_{{i}}" style="width: 60px; text-align: center; padding: 5px; background: #222; color: white; border: 1px solid #555;" 
+                                   value="{{ saved_a[i-1] if saved_a|length >= i else 0 }}">
+                        </td>
+                        <td style="text-align: center;">
+                            <input type="number" name="score_b_{{i}}" style="width: 60px; text-align: center; padding: 5px; background: #222; color: white; border: 1px solid #555;" 
+                                   value="{{ saved_b[i-1] if saved_b|length >= i else 0 }}">
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
-            <button type="submit" class="btn" style="width:100%; background:#d32f2f;">Ergebnisse Senden 📤</button>
+            <button class="btn" style="width: 100%; background: #f44336;">Ergebnisse Speichern & Beenden</button>
         </form>
     </div>
+    {% endif %}
 
     <div class="chat-container">
-        <div id="chatBox" style="flex: 1; overflow-y: auto; padding: 10px;"></div>
-        <div style="display: flex; padding: 10px; border-top: 1px solid #333;">
-            <input type="text" id="msgInput" style="flex: 1; padding: 10px; background: #222; border: none; color: white;" placeholder="Nachricht...">
-            <button onclick="sendMsg()" class="btn-small">Senden</button>
+        <div style="padding: 10px; border-bottom: 1px solid #333; font-weight: bold; background: #252525;">💬 Cup Chat</div>
+        <div id="chatBox" class="chat-messages">
+            <div style="text-align: center; color: #555; margin-top: 20px;">Lade Chat...</div>
+        </div>
+        <div style="padding: 10px; border-top: 1px solid #333; display: flex; gap: 10px; background: #222;">
+            <input type="text" id="msgInput" style="flex: 1; padding: 10px; background: #111; border: 1px solid #444; color: white; border-radius: 4px;" placeholder="Nachricht..." onkeypress="handleEnter(event)">
+            <button onclick="sendMsg()" class="btn-small" style="background: #4caf50;">Senden</button>
         </div>
     </div>
 
@@ -96,141 +140,84 @@
 <script>
     const matchId = {{ match.id }};
     const currentUser = "{{ current_user.username }}";
-    // is_admin/is_mod prüfen (Python Bool zu JS Bool)
-    const isAdmin = {{ 'true' if current_user.is_admin or current_user.is_mod else 'false' }};
     
-    const statusHeadline = document.getElementById('statusHeadline');
-    const statusCard = document.getElementById('statusCard');
-    const votingSec = document.getElementById('votingSection');
-    const scoringSec = document.getElementById('scoringSection');
-    const waitMsg = document.getElementById('waitMessage');
-    const lobbyDisplay = document.getElementById('lobbyCodeDisplay');
     const chatBox = document.getElementById('chatBox');
+    const lobbyDisplay = document.getElementById('lobbyCodeDisplay');
+    const statusDisplay = document.getElementById('statusDisplay');
+    let lastMsgCount = 0;
 
-    // -- MAP PICK FUNKTION (AJAX) --
-    async function sendMapPick(mapName) {
-        const formData = new FormData();
-        formData.append('selected_map', mapName);
-        
-        // Sende an die normale URL, ignoriere den Redirect, updateState regelt die UI
-        try {
-            await fetch(`/match/${matchId}`, { method: 'POST', body: formData });
-            updateState(); // Sofort update triggern
-        } catch(e) { console.error(e); }
-    }
-
-    // -- LOBBY CODE FUNKTION (AJAX) --
-    async function sendLobbyCode() {
-        const code = document.getElementById('lobbyInput').value;
-        if(!code) return;
-        
-        const formData = new FormData();
-        formData.append('lobby_code', code);
-        
-        try {
-            await fetch(`/match/${matchId}`, { method: 'POST', body: formData });
-            document.getElementById('lobbyInput').value = '';
-            updateState();
-        } catch(e) { console.error(e); }
-    }
-
-    // -- STATE UPDATE --
+    // --- STATE UPDATE (Live Status & Lobby Code für User) ---
     async function updateState() {
         try {
-            const res = await fetch(`/api/match/${matchId}/state`);
+            // WICHTIG: Hier auf /api/cup_match/... zugreifen!
+            const res = await fetch(`/api/cup_match/${matchId}/state`);
             const data = await res.json();
             
-            // HEADER & SECTIONS
-            let text = "";
-            let color = "#fbc02d";
-            const state = data.state;
-
-            // Voting Section nur anzeigen wenn Bann/Pick Phase
-            const isVoting = state.includes('ban') || state.includes('pick');
-            votingSec.style.display = isVoting ? 'block' : 'none';
+            // Status Text Update
+            statusDisplay.innerText = "STATUS: " + data.state.toUpperCase().replace('_', ' ');
             
-            // Scoring nur wenn Phase vorbei
-            const isScoring = (state === 'scoring_phase' || state === 'finished');
-            scoringSec.style.display = isScoring ? 'block' : 'none';
-
-            if (state.includes('ban')) {
-                text = `🚫 BANN: ${data.active_team}`;
-                color = "#d32f2f";
-            } else if (state.includes('pick')) {
-                text = `✅ PICK: ${data.active_team}`;
-                color = "#1976d2";
-            } else if (isScoring) {
-                text = (state === 'finished') ? "🏁 Match Beendet" : "📝 Ergebnisse eintragen";
-                color = (state === 'finished') ? "#4caf50" : "#ff9800";
+            // Lobby Code Update (nur Textanzeige, Input ist Formular)
+            if (lobbyDisplay) {
+                lobbyDisplay.innerText = data.lobby_code ? data.lobby_code : (data.state === 'waiting_for_code' ? "Warten auf Admin..." : "...");
             }
 
-            statusHeadline.innerText = text;
-            statusCard.style.borderLeftColor = color;
-
-            // MAP GRID UPDATE (Buttons sperren/färben)
-            if (isVoting) {
-                const amIActive = (data.active_team === currentUser) || isAdmin;
-                waitMsg.style.display = amIActive ? 'none' : 'block';
-
-                const buttons = document.querySelectorAll('#votingSection button');
-                buttons.forEach(btn => {
-                    const mapName = btn.value;
-                    const isBanned = data.banned.includes(mapName);
-                    const isPicked = data.picked.includes(mapName);
-
-                    btn.classList.remove('is-banned', 'is-picked');
-                    if (isBanned) btn.classList.add('is-banned');
-                    if (isPicked) btn.classList.add('is-picked');
-                    
-                    // Button sperren wenn Karte weg ist ODER ich nicht dran bin
-                    btn.disabled = isBanned || isPicked || !amIActive;
-                });
+            // Auto-Reload bei Phasenwechsel (damit User neue Maps/Inputs sehen)
+            // Wenn im Backend 'in_progress', aber im Frontend noch kein Lobby-Code-Feld da ist -> Reload
+            const currentState = "{{ match.state }}";
+            if (data.state !== currentState) {
+                // Einfacher Reload bei Statusänderung, um UI sauber neu zu bauen
+                window.location.reload();
             }
 
-            // SCORE TABLE MAP NAMES
-            if (data.picked.length > 0) {
-                data.picked.forEach((mapName, index) => {
-                    const slot = document.querySelector(`.map-slot-${index}`);
-                    if(slot) slot.innerText = mapName;
-                });
-            }
-
-            // LOBBY CODE
-            if (lobbyDisplay) lobbyDisplay.innerText = data.lobby_code ? data.lobby_code : "Warten auf Admin...";
-
-        } catch (e) { }
+        } catch (e) { console.log("Polling error:", e); }
     }
 
-    // -- CHAT --
+    // --- CHAT FUNKTIONEN ---
     async function sendMsg() {
         const txt = document.getElementById('msgInput').value;
         if(!txt) return;
-        await fetch(`/api/match/${matchId}/chat`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({message: txt}) });
-        document.getElementById('msgInput').value = ''; loadChat();
+        // WICHTIG: /api/cup_match/...
+        await fetch(`/api/cup_match/${matchId}/chat`, { 
+            method:'POST', 
+            headers:{'Content-Type':'application/json'}, 
+            body: JSON.stringify({message: txt}) 
+        });
+        document.getElementById('msgInput').value = ''; 
+        loadChat();
     }
+
+    function handleEnter(e) { if(e.key === 'Enter') sendMsg(); }
 
     async function loadChat() {
         try {
-            const res = await fetch(`/api/match/${matchId}/chat`);
+            // WICHTIG: /api/cup_match/...
+            const res = await fetch(`/api/cup_match/${matchId}/chat`);
             const data = await res.json();
             
-            // Nur updaten wenn nötig (einfacher Check: Länge) oder immer ersetzen und scrollen
-            const oldHtml = chatBox.innerHTML;
-            const newHtml = data.map(m => {
-                let badge = m.is_admin ? '🛡️ ' : (m.is_mod ? '🛡️ ' : '');
-                let color = m.is_admin ? '#e65100' : (m.is_mod ? '#00bcd4' : '#333');
-                return `<div style="margin-bottom: 5px; text-align: ${m.is_me ? 'right':'left'}"><span style="font-size: 0.7em; color: #888;">${badge}${m.user}</span><br><span style="background: ${m.is_me ? '#1976d2' : color}; padding: 5px 10px; border-radius: 4px; display: inline-block; color: white;">${m.text}</span></div>`;
-            }).join('');
+            if (data.length !== lastMsgCount) {
+                chatBox.innerHTML = data.map(m => {
+                    let badge = '';
+                    let color = '#333'; // Standard Grau
+                    if (m.is_admin) { badge = '🛡️ '; color = '#e65100'; } // Orange
+                    else if (m.is_mod) { badge = '🛡️ '; color = '#00bcd4'; } // Cyan
 
-            if (oldHtml !== newHtml) {
-                chatBox.innerHTML = newHtml;
-                chatBox.scrollTop = chatBox.scrollHeight; // Scroll nach unten
+                    return `<div style="margin-bottom: 8px; text-align: ${m.is_me ? 'right':'left'}">
+                        <span class="msg-meta">${badge}${m.user} • ${m.time}</span>
+                        <div style="background: ${m.is_me ? '#1976d2' : color}; padding: 6px 12px; border-radius: 6px; display: inline-block; color: white; border: ${m.is_me ? 'none' : '1px solid #444'};">
+                            ${m.text}
+                        </div>
+                    </div>`;
+                }).join('');
+                
+                chatBox.scrollTop = chatBox.scrollHeight;
+                lastMsgCount = data.length;
             }
         } catch(e) {}
     }
 
-    // Init & Interval
-    setInterval(() => { updateState(); loadChat(); }, 2000);
+    // Intervalle starten
+    setInterval(() => { updateState(); loadChat(); }, 3000);
+    // Initial laden
     updateState(); loadChat();
 </script>
 {% endblock %}
