@@ -3,7 +3,7 @@ import random
 import json
 import math
 from werkzeug.utils import secure_filename 
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -110,7 +110,7 @@ class Match(db.Model):
     def get_scores_a(self): return self._safe_load(self.scores_a)
     def get_scores_b(self): return self._safe_load(self.scores_b)
     
-    # HIER FEHLTE DIE METHODE, die in advance_winner aufgerufen wird:
+    # HIER FEHLTE DIE METHODE:
     def get_map_wins(self):
         return calculate_map_wins(self.get_scores_a(), self.get_scores_b())
 
@@ -429,7 +429,9 @@ def dashboard():
     active_leagues = League.query.filter_by(is_archived=False).all()
     archived_leagues = League.query.filter_by(is_archived=True).all()
 
-    maps = Map.query.all()
+    # Filter archivierte Maps aus dem Dashboard, falls nötig, oder hier alle anzeigen
+    # Im Match-View ist der Filter wichtiger.
+    maps = Map.query.all() 
     users = User.query.filter_by(is_admin=False).all()
     clans = Clan.query.all()
     
@@ -440,9 +442,9 @@ def dashboard():
                            active_tournaments=active_tournaments, 
                            archived_tournaments=archived_tournaments,
                            active_cups=active_cups,
-                           archived_cups=archived_cups, # Hinzugefügt
+                           archived_cups=archived_cups, 
                            active_leagues=active_leagues,
-                           archived_leagues=archived_leagues, # Hinzugefügt
+                           archived_leagues=archived_leagues, 
                            maps=maps, users=users, clans=clans,
                            clan_map=clan_map)
 
@@ -706,10 +708,10 @@ def match_view(match_id):
         elif 'submit_scores' in request.form:
             s, m = handle_scoring_logic(match, request.form, current_user)
             db.session.commit(); flash(m, "success" if s else "error")
-        # HIER ERGÄNZT:
+        # LOBBY CODE FÜR TURNIERE
         elif 'lobby_code' in request.form and (current_user.is_admin or current_user.is_mod):
-            match.lobby_code = request.form.get('lobby_code')
-            db.session.commit()
+            match.lobby_code = request.form.get('lobby_code'); db.session.commit()
+            
         return redirect(url_for('match_view', match_id=match.id))
 
     # KORREKTUR: Filter archivierte Maps
@@ -756,7 +758,8 @@ def cup_details(cup_id):
     standings = {user: {'played': 0, 'won_matches': 0, 'lost_matches': 0, 'draw_matches': 0, 'own_score': 0, 'opp_score': 0} for user in cup.get_participants()}
     for m in cup.matches:
         if m.state == 'finished':
-            wa, wb = m.get_map_wins(); sum_a = sum(m.get_scores_a()); sum_b = sum(m.get_scores_b())
+            wa, wb = m.get_map_wins() # HIER NEU
+            sum_a = sum(m.get_scores_a()); sum_b = sum(m.get_scores_b())
             if m.team_a in standings:
                 s = standings[m.team_a]; s['played']+=1; s['own_score']+=sum_a; s['opp_score']+=sum_b
                 if wa>wb: s['won_matches']+=1
@@ -776,26 +779,22 @@ def cup_match_view(match_id):
     if not (current_user.is_admin or current_user.is_mod or current_user.username in [match.team_a, match.team_b]):
         flash("Kein Zugriff.", "error"); return redirect(url_for('dashboard'))
     if request.method == 'POST':
-        if 'toggle_ready' in request.form:
-            if current_user.username == match.team_a: match.ready_a = not match.ready_a
-            elif current_user.username == match.team_b: match.ready_b = not match.ready_b
-            if match.ready_a and match.ready_b and match.state == 'waiting_for_ready': match.state = 'picking'
+        # NEU: ADMIN 3-MAP SETTING
+        if 'set_maps' in request.form and (current_user.is_admin or current_user.is_mod):
+            # Hole 3 Maps
+            selected = [request.form.get(f'map_{i}') for i in range(1, 4)]
+            match.picked_maps = json.dumps(selected)
+            match.state = 'waiting_for_code'
             db.session.commit()
-        elif 'pick_map' in request.form and match.state == 'picking':
-            if current_user.username == match.current_picker:
-                m = request.form.get('pick_map')
-                pm = match.get_picked(); pm.append(m); match.picked_maps = json.dumps(pm)
-                match.current_picker = match.team_b if match.current_picker == match.team_a else match.team_a
-                if len(pm) >= 6: match.state = 'waiting_for_code'
-                db.session.commit()
         elif 'set_lobby_code' in request.form and (current_user.is_admin or current_user.is_mod):
             match.lobby_code = request.form.get('lobby_code')
-            if match.state == 'waiting_for_code': match.state = 'in_progress'
+            match.state = 'in_progress'
             db.session.commit()
         elif 'submit_scores' in request.form and (current_user.is_admin or current_user.is_mod):
             try:
-                sa = [int(request.form.get(f'score_a_{i}', 0)) for i in range(6)]
-                sb = [int(request.form.get(f'score_b_{i}', 0)) for i in range(6)]
+                # 3 SCORES
+                sa = [int(request.form.get(f'score_a_{i}', 0)) for i in range(3)]
+                sb = [int(request.form.get(f'score_b_{i}', 0)) for i in range(3)]
                 match.scores_a = json.dumps(sa); match.scores_b = json.dumps(sb); match.state = 'finished'
                 db.session.commit(); flash("Gespeichert.", "success")
             except: flash("Fehler.", "error")
@@ -803,7 +802,7 @@ def cup_match_view(match_id):
     # KORREKTUR: Filter archivierte Maps
     return render_template('cup_match.html', match=match, all_maps=Map.query.filter_by(is_archived=False).all(), picked=match.get_picked())
 
-# --- NEUE ROUTEN: ARCHIV & LÖSCHEN (CUP) ---
+# --- NEU: CUP ARCHIV ---
 @app.route('/archive_cup/<int:cup_id>', methods=['POST'])
 @login_required
 def archive_cup(cup_id):
@@ -846,15 +845,15 @@ def league_details(league_id):
         if m.state == 'finished':
             wa, wb = m.get_map_wins(); sum_a = sum(m.get_scores_a()); sum_b = sum(m.get_scores_b())
             if m.team_a in standings:
-                s = standings[m.team_a]; s['played']+=1; s['own_score']+=sum_a; s['opp_score']+=sum_b
-                if wa>wb: s['won_matches']+=1
-                elif wb>wa: s['lost_matches']+=1
-                else: s['draw_matches']+=1
+                standings[m.team_a]['played'] += 1; standings[m.team_a]['own_score'] += sum_a; standings[m.team_a]['opp_score'] += sum_b
+                if wa > wb: standings[m.team_a]['won_matches'] += 1
+                elif wb > wa: standings[m.team_a]['lost_matches'] += 1
+                else: standings[m.team_a]['draw_matches'] += 1
             if m.team_b in standings:
-                s = standings[m.team_b]; s['played']+=1; s['own_score']+=sum_b; s['opp_score']+=sum_a
-                if wb > wa: s['won_matches']+=1
-                elif wa > wb: s['lost_matches']+=1
-                else: s['draw_matches']+=1
+                standings[m.team_b]['played'] += 1; standings[m.team_b]['own_score'] += sum_b; standings[m.team_b]['opp_score'] += sum_a
+                if wb > wa: standings[m.team_b]['won_matches'] += 1
+                elif wa > wb: standings[m.team_b]['lost_matches'] += 1
+                else: standings[m.team_b]['draw_matches'] += 1
     return render_template('league_details.html', league=league, standings=sorted(standings.items(), key=lambda x: x[1]['own_score'], reverse=True))
 
 @app.route('/league_match/<int:match_id>', methods=['GET', 'POST'])
@@ -904,7 +903,7 @@ def league_match_view(match_id):
     # KORREKTUR: Filter archivierte Maps
     return render_template('league_match.html', match=match, all_maps=Map.query.filter_by(is_archived=False).all(), banned=match.get_banned(), picked=match.get_picked(), active_team=active_team)
 
-# --- NEUE ROUTEN: ARCHIV & LÖSCHEN (LIGA) ---
+# --- NEU: LIGA ARCHIV ---
 @app.route('/archive_league/<int:league_id>', methods=['POST'])
 @login_required
 def archive_league(league_id):
@@ -992,13 +991,9 @@ def league_match_state(match_id):
     if match.state.endswith('_a'): active_team = match.team_a
     elif match.state.endswith('_b'): active_team = match.team_b
     return json.dumps({
-        'state': match.state,
-        'active_team': active_team,
-        'banned': match.get_banned(),
-        'picked': match.get_picked(),
-        'lobby_code': match.lobby_code,
-        'confirmed_a': match.confirmed_a,
-        'confirmed_b': match.confirmed_b
+        'state': match.state, 'active_team': active_team,
+        'banned': match.get_banned(), 'picked': match.get_picked(),
+        'lobby_code': match.lobby_code, 'confirmed_a': match.confirmed_a, 'confirmed_b': match.confirmed_b
     })
 
 @app.route('/rules')
